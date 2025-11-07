@@ -1,0 +1,42 @@
+name: migue_iphones
+description: "Web para catálogo de iPhones y accesorios."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.5.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Gestión de Estado (Versiones Estables)
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.5.1
+  
+  # Navegación
+  go_router: ^14.6.1
+  
+  # Backend (Supabase)
+  supabase_flutter: ^2.8.1
+  
+  # Utilidades y Diseño
+  http: ^1.2.2
+  intl: ^0.20.2
+  font_awesome_flutter: ^10.8.0
+  flutter_localizations:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  
+  # Generadores (Versiones Estables)
+  build_runner: ^2.4.11
+  riverpod_generator: ^2.5.1
+
+flutter:
+  uses-material-design: true
+  generate: true
