@@ -27,7 +27,6 @@ Remove-Item -Recurse -Force docs
 flutter build web
 mkdir docs    
 cp -r build/web/* docs/
-copy vercel.json docs/
 git add .
 git commit -m "actualizando pagina para vercel"
 git push
