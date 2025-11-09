@@ -1,4 +1,4 @@
-// lib/infrastructure/datasources/products_datasource.dart
+// lib/infrastructure/datasources/products_datasource.dart (CORREGIDO)
 
 import 'package:migue_iphones/domain/models/product.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -10,15 +10,9 @@ class SupabaseProductsDatasource {
   // Asume que la tabla de productos se llama 'products'
   static const String _tableName = 'products'; 
 
-  // Inyectamos el cliente de Supabase (viene de la inicialización en main.dart)
+  // CORRECCIÓN: Usamos la instancia global de Supabase inicializada en main.dart
   SupabaseProductsDatasource() : 
-    // Inicialización del cliente de Supabase
-    // ADVERTENCIA: Debes reemplazar estos placeholders con tus credenciales reales de Supabase.
-    // En un entorno de producción, estos valores deben cargarse desde un archivo .env.
-    supabase = SupabaseClient(
-      'TU_URL_DE_SUPABASE', 
-      'TU_ANON_KEY_DE_SUPABASE_PUBLICA',
-    );
+    supabase = Supabase.instance.client;
 
   // Método para obtener la lista de productos
   Future<List<Product>> getProducts() async {

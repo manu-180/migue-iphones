@@ -6,7 +6,7 @@ part of 'cart_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$cartTotalItemsHash() => r'6a1240a9ea5c9ba440619fb4b7878bd018c03f39';
+String _$cartTotalItemsHash() => r'501e7642234d78f1d767a0777c3186050f9b087a';
 
 /// See also [cartTotalItems].
 @ProviderFor(cartTotalItems)
@@ -23,7 +23,7 @@ final cartTotalItemsProvider = AutoDisposeProvider<int>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef CartTotalItemsRef = AutoDisposeProviderRef<int>;
-String _$cartTotalPriceHash() => r'3d1d605a58aad928cca2bc7c4f40059fa75cd1a1';
+String _$cartTotalPriceHash() => r'68f7642fdcf3b2052100e219520ce308840f82b4';
 
 /// See also [cartTotalPrice].
 @ProviderFor(cartTotalPrice)
@@ -40,12 +40,12 @@ final cartTotalPriceProvider = AutoDisposeProvider<double>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef CartTotalPriceRef = AutoDisposeProviderRef<double>;
-String _$cartNotifierHash() => r'0ab9cec144854e4bb26ddc17e445335e94acdde8';
+String _$cartNotifierHash() => r'f302675c252454a8ac6de67005fb999507cc5114';
 
 /// See also [CartNotifier].
 @ProviderFor(CartNotifier)
 final cartNotifierProvider =
-    NotifierProvider<CartNotifier, List<CartItem>>.internal(
+    AsyncNotifierProvider<CartNotifier, List<CartItem>>.internal(
   CartNotifier.new,
   name: r'cartNotifierProvider',
   debugGetCreateSourceHash:
@@ -54,6 +54,6 @@ final cartNotifierProvider =
   allTransitiveDependencies: null,
 );
 
-typedef _$CartNotifier = Notifier<List<CartItem>>;
+typedef _$CartNotifier = AsyncNotifier<List<CartItem>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

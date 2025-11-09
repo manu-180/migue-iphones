@@ -1,12 +1,16 @@
-// lib/presentation/widgets/home/product_card.dart (ACTUALIZADO)
+// lib/presentation/widgets/home/product_card.dart (ACTUALIZADO CON HOVER)
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // Importar
+import 'package:flutter/gestures.dart'; // Importar para el cursor
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:migue_iphones/domain/models/product.dart';
 import 'package:intl/intl.dart';
-import 'package:migue_iphones/presentation/providers/cart/cart_provider.dart'; // Importar
+import 'package:migue_iphones/presentation/providers/cart/cart_provider.dart';
+import 'package:migue_iphones/presentation/screens/product/product_screen.dart';
+import 'package:migue_iphones/presentation/widgets/shared/added_to_cart_dialog.dart';
 
-class ProductCard extends ConsumerStatefulWidget { // 1. Cambiar a ConsumerStatefulWidget
+class ProductCard extends ConsumerStatefulWidget {
   final Product product;
 
   const ProductCard({
@@ -15,13 +19,12 @@ class ProductCard extends ConsumerStatefulWidget { // 1. Cambiar a ConsumerState
   });
 
   @override
-  ConsumerState<ProductCard> createState() => _ProductCardState(); // 2. Cambiar a ConsumerState
+  ConsumerState<ProductCard> createState() => _ProductCardState();
 }
 
-class _ProductCardState extends ConsumerState<ProductCard> { // 3. Cambiar a ConsumerState
+class _ProductCardState extends ConsumerState<ProductCard> {
   bool _isHovering = false;
   
-  // Formato para mostrar el precio en moneda local (Argentina - ARS)
   final formatter = NumberFormat.currency(
     locale: 'es_AR',
     symbol: '\$',
@@ -30,29 +33,34 @@ class _ProductCardState extends ConsumerState<ProductCard> { // 3. Cambiar a Con
 
   @override
   Widget build(BuildContext context) {
-    // Escucha el evento del mouse
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _isHovering = true),
       onExit: (_) => setState(() => _isHovering = false),
       
-      // La tarjeta se envuelve en un GestureDetector para la acción de click
       child: GestureDetector(
         onTap: () {
-          // TODO: Implementar navegación a la pantalla de detalle del producto
-          print('Clic en ${widget.product.name}');
+          context.pushNamed(
+            ProductScreen.name,
+            pathParameters: {'id': widget.product.id.toString()},
+          );
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeInOut,
-          // La elevación cambia al hacer hover
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface, // Gris claro Apple
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(15),
+            
+            // --- CORRECCIÓN DE SOMBRA ---
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(_isHovering ? 0.2 : 0.08),
-                blurRadius: _isHovering ? 15 : 5,
-                offset: Offset(0, _isHovering ? 8 : 2),
+                // 1. Opacidad más oscura al hacer hover
+                color: Colors.black.withOpacity(_isHovering ? 0.3 : 0.08), 
+                // 2. Desenfoque (blur) más grande
+                blurRadius: _isHovering ? 25 : 5, 
+                // 3. Desplazamiento (offset) más notorio
+                offset: Offset(0, _isHovering ? 12 : 2), 
               ),
             ],
           ),
@@ -69,7 +77,6 @@ class _ProductCardState extends ConsumerState<ProductCard> { // 3. Cambiar a Con
                     fit: BoxFit.cover,
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
-                      // Placeholder o shimmer durante la carga de la imagen
                       return Container(
                         color: Colors.white,
                         alignment: Alignment.center,
@@ -105,16 +112,16 @@ class _ProductCardState extends ConsumerState<ProductCard> { // 3. Cambiar a Con
                       formatter.format(widget.product.price),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w800,
-                        color: Theme.of(context).colorScheme.primary, // Apple Blue
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                     const SizedBox(height: 8),
 
-                    // Botón de Añadir al Carrito (temporal)
+                    // Botón de Añadir al Carrito
                     Center(
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.black, // Botón negro como Apple
+                          backgroundColor: Colors.black,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -123,17 +130,8 @@ class _ProductCardState extends ConsumerState<ProductCard> { // 3. Cambiar a Con
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                         ),
                         onPressed: () {
-                          // 4. USAR EL NOTIFIER PARA AÑADIR EL PRODUCTO
                           ref.read(cartNotifierProvider.notifier).addProductToCart(widget.product);
-                          
-                          // Feedback visual al usuario
-                          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('${widget.product.name} añadido al carrito.'),
-                              duration: const Duration(seconds: 1),
-                            )
-                          );
+                          AddedToCartDialog.show(context, widget.product);
                         },
                         icon: const Icon(Icons.shopping_bag_outlined, size: 20),
                         label: const Text('Añadir al Carrito', style: TextStyle(fontWeight: FontWeight.bold)),

@@ -1,22 +1,22 @@
-// lib/main.dart (CORREGIDO con CardThemeData)
+// lib/main.dart (CORREGIDO CON DOTENV)
 
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // Importar dotenv
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:migue_iphones/config/router/app_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
-// ADVERTENCIA: Usaremos placeholders aquí, pero DEBES usar tus propias credenciales.
-const String supabaseUrl = 'TU_URL_DE_SUPABASE';
-const String supabaseAnonKey = 'TU_ANON_KEY_DE_SUPABASE_PUBLICA';
 
 void main() async {
   // Asegura que los bindings de Flutter estén inicializados
   WidgetsFlutterBinding.ensureInitialized();
   
-  // 1. Inicializar Supabase
+  // 1. Cargar las variables de entorno
+  await dotenv.load(fileName: ".env");
+  
+  // 2. Inicializar Supabase
   await Supabase.initialize(
-    url: supabaseUrl,
-    anonKey: supabaseAnonKey,
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
 
   runApp(
@@ -64,15 +64,12 @@ class MainApp extends ConsumerWidget {
           fontWeight: FontWeight.bold,
         ),
       ),
-      
-      // CORRECCIÓN APLICADA: Usando CardThemeData
-      cardTheme: CardThemeData( 
+      cardTheme: CardThemeData( // Usando CardThemeData
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
       ),
-      
       textTheme: const TextTheme(
         bodyLarge: TextStyle(color: Colors.black87),
         bodyMedium: TextStyle(color: Colors.black54),

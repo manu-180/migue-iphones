@@ -1,4 +1,4 @@
-// lib/presentation/screens/product/product_screen.dart
+// lib/presentation/screens/product/product_screen.dart (ACTUALIZADO)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,7 +6,10 @@ import 'package:intl/intl.dart';
 import 'package:migue_iphones/domain/models/product.dart';
 import 'package:migue_iphones/presentation/providers/cart/cart_provider.dart';
 import 'package:migue_iphones/presentation/providers/products/products_provider.dart';
-import 'package:migue_iphones/presentation/widgets/shared/custom_app_bar.dart'; // Reutilizamos el App Bar
+import 'package:migue_iphones/presentation/widgets/shared/custom_app_bar.dart'; 
+import 'package:migue_iphones/presentation/widgets/shared/added_to_cart_dialog.dart';
+// 1. IMPORTAR EL FOOTER COMPARTIDO
+import 'package:migue_iphones/presentation/widgets/shared/app_footer.dart'; 
 
 class ProductScreen extends ConsumerWidget {
   static const String name = 'product_screen';
@@ -23,8 +26,6 @@ class ProductScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 1. Buscamos el producto en la lista de productos ya cargada
-    // Esto es eficiente si el usuario viene del catálogo.
     final productsAsync = ref.watch(productsNotifierProvider);
 
     return Scaffold(
@@ -32,20 +33,21 @@ class ProductScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator.adaptive()),
         error: (err, stack) => Center(child: Text('Error: $err')),
         data: (products) {
-          // 2. Encontrar el producto específico usando el ID de la ruta
           final product = products.firstWhere(
             (p) => p.id.toString() == productId,
-            // Fallback si no se encuentra (aunque no debería pasar si la navegación es correcta)
             orElse: () => products.first, 
           );
 
           // Usamos CustomScrollView para el App Bar y el contenido
           return CustomScrollView(
             slivers: [
-              const SliverToBoxAdapter(child: CustomAppBar()),
+              // 3. CORRECCIÓN: Usar TopNavigationBar (solo logo y carrito)
+              const SliverToBoxAdapter(child: TopNavigationBar()),
               SliverToBoxAdapter(
                 child: _ProductDetailView(product: product),
               ),
+              // 2. AÑADIR EL FOOTER COMPARTIDO AL FINAL
+              const SliverToBoxAdapter(child: AppFooter()),
             ],
           );
         },
@@ -96,14 +98,17 @@ class _DesktopLayout extends ConsumerWidget {
       children: [
         // Columna Izquierda: Imagen
         Expanded(
-          flex: 2,
-          child: Image.network(product.imageUrl, fit: BoxFit.contain),
+          flex: 1,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Image.network(product.imageUrl, fit: BoxFit.contain),
+          ),
         ),
         const SizedBox(width: 40),
         
         // Columna Derecha: Detalles y Compra
         Expanded(
-          flex: 3,
+          flex: 2,
           child: _ProductDetailsColumn(product: product),
         ),
       ],
@@ -119,7 +124,10 @@ class _MobileLayout extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       children: [
-        Image.network(product.imageUrl, fit: BoxFit.contain),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Image.network(product.imageUrl, fit: BoxFit.contain),
+        ),
         const SizedBox(height: 30),
         _ProductDetailsColumn(product: product),
       ],
@@ -141,7 +149,6 @@ class _ProductDetailsColumn extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Categoría (con estilo Apple)
         Text(
           product.category.toUpperCase(),
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -151,7 +158,6 @@ class _ProductDetailsColumn extends ConsumerWidget {
         ),
         const SizedBox(height: 10),
         
-        // Nombre del Producto
         Text(
           product.name,
           style: Theme.of(context).textTheme.displayMedium?.copyWith(
@@ -161,7 +167,6 @@ class _ProductDetailsColumn extends ConsumerWidget {
         ),
         const SizedBox(height: 20),
         
-        // Precio
         Text(
           ProductScreen.currencyFormatter.format(product.price),
           style: Theme.of(context).textTheme.displaySmall?.copyWith(
@@ -171,13 +176,12 @@ class _ProductDetailsColumn extends ConsumerWidget {
         ),
         const SizedBox(height: 30),
         
-        // Descripción
         Text(
           product.description,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
             fontSize: 18,
             color: Colors.black87,
-            height: 1.5, // Interlineado
+            height: 1.5,
           ),
         ),
         const SizedBox(height: 30),
@@ -189,7 +193,7 @@ class _ProductDetailsColumn extends ConsumerWidget {
           width: double.infinity,
           child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.black, // Botón negro
+              backgroundColor: Colors.black,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 20),
               shape: RoundedRectangleBorder(
@@ -197,17 +201,8 @@ class _ProductDetailsColumn extends ConsumerWidget {
               ),
             ),
             onPressed: () {
-              // USAR EL NOTIFIER PARA AÑADIR EL PRODUCTO
               ref.read(cartNotifierProvider.notifier).addProductToCart(product);
-              
-              // Feedback visual
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${product.name} añadido al carrito.'),
-                  duration: const Duration(seconds: 1),
-                )
-              );
+              AddedToCartDialog.show(context, product);
             },
             icon: const Icon(Icons.shopping_bag_outlined, size: 20),
             label: const Text(
