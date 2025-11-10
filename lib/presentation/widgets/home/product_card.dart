@@ -1,7 +1,7 @@
-// lib/presentation/widgets/home/product_card.dart (ACTUALIZADO CON HOVER)
+// lib/presentation/widgets/home/product_card.dart (ACTUALIZADO)
 
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart'; // Importar para el cursor
+import 'package:flutter/gestures.dart'; 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:migue_iphones/domain/models/product.dart';
@@ -51,15 +51,10 @@ class _ProductCardState extends ConsumerState<ProductCard> {
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(15),
-            
-            // --- CORRECCIÓN DE SOMBRA ---
             boxShadow: [
               BoxShadow(
-                // 1. Opacidad más oscura al hacer hover
                 color: Colors.black.withOpacity(_isHovering ? 0.3 : 0.08), 
-                // 2. Desenfoque (blur) más grande
                 blurRadius: _isHovering ? 25 : 5, 
-                // 3. Desplazamiento (offset) más notorio
                 offset: Offset(0, _isHovering ? 12 : 2), 
               ),
             ],
@@ -96,7 +91,6 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Nombre del Producto
                     Text(
                       widget.product.name,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -106,8 +100,6 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-
-                    // Precio
                     Text(
                       formatter.format(widget.product.price),
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -133,7 +125,8 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                           ref.read(cartNotifierProvider.notifier).addProductToCart(widget.product);
                           AddedToCartDialog.show(context, widget.product);
                         },
-                        icon: const Icon(Icons.shopping_bag_outlined, size: 20),
+                        // CORRECCIÓN DE ICONO:
+                        icon: const Icon(Icons.add_shopping_cart_outlined, size: 20),
                         label: const Text('Añadir al Carrito', style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ),

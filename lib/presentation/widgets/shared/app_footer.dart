@@ -1,4 +1,4 @@
-// lib/presentation/widgets/shared/app_footer.dart (ACTUALIZADO)
+// lib/presentation/widgets/shared/app_footer.dart (SIN IMAGEN)
 
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -33,7 +33,7 @@ class AppFooter extends StatelessWidget {
           width: double.infinity,
           child: Column(
             children: [
-              // --- Sección Principal (3 columnas) ---
+              // --- Sección Principal (2 columnas) ---
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: isDesktop
@@ -62,7 +62,7 @@ class AppFooter extends StatelessWidget {
 // LAYOUTS RESPONSIVE INTERNOS
 // ---------------------------------------------------
 
-// Layout para pantallas anchas (3 Columnas)
+// Layout para pantallas anchas (2 Columnas)
 class _DesktopFooterLayout extends StatelessWidget {
   final TextStyle? textStyle;
   final Future<void> Function(String) launchURL;
@@ -73,22 +73,17 @@ class _DesktopFooterLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      // 1. ELIMINADA LA COLUMNA DE IMAGEN
       children: [
         // Columna 1: Contacto
-        Flexible(
-          flex: 2,
+        Expanded(
+          flex: 1, // Ajustado a 1
           child: _ContactInfoColumn(textStyle: textStyle, launchURL: launchURL),
         ),
         // Columna 2: Navegación
-        Flexible(
-          flex: 2,
+        Expanded(
+          flex: 1, // Ajustado a 1
           child: _NavigationColumn(textStyle: textStyle),
-        ),
-        // Columna 3: Imagen
-        Flexible(
-          flex: 1,
-          child: _FooterImage(),
         ),
       ],
     );
@@ -105,13 +100,11 @@ class _MobileFooterLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      // Alineado a la izquierda para que los títulos se vean bien
       crossAxisAlignment: CrossAxisAlignment.start, 
       children: [
-        Center(child: _FooterImage()), // Imagen sí va centrada
-        const SizedBox(height: 30),
+        // 2. IMAGEN Y SIZEDBOX ELIMINADOS
         _ContactInfoColumn(textStyle: textStyle, launchURL: launchURL),
-        // Columna de Navegación eliminada en móvil (Request 4)
+        // Columna de Navegación eliminada en móvil (como se solicitó)
       ],
     );
   }
@@ -186,16 +179,13 @@ class _NavigationColumn extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         _ClickableNavigationItem(
-          // Request 2: Icono añadido
           icon: FontAwesomeIcons.store, 
-          // Request 1: Texto "Inicio" eliminado
           text: 'Catálogo', 
           textStyle: textStyle,
           onTap: () => context.go('/'), // Vuelve al Home
         ),
         const SizedBox(height: 10),
         _ClickableNavigationItem(
-          // Request 2: Icono añadido
           icon: FontAwesomeIcons.shoppingCart, 
           text: 'Mi Carrito',
           textStyle: textStyle,
@@ -206,21 +196,7 @@ class _NavigationColumn extends StatelessWidget {
   }
 }
 
-// Columna 3: Imagen
-class _FooterImage extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerRight,
-      child: Image.asset(
-        'assets/images/applefooter.png',
-        // Request 3: Imagen más grande
-        height: 140, 
-        fit: BoxFit.contain,
-      ),
-    );
-  }
-}
+// 3. Columna 3: Imagen (WIDGET ELIMINADO)
 
 
 // ---------------------------------------------------
@@ -264,15 +240,15 @@ class _ClickableContactItem extends StatelessWidget {
   }
 }
 
-// Widget para un item de navegación (AHORA CON ÍCONO)
+// Widget para un item de navegación (solo texto)
 class _ClickableNavigationItem extends StatelessWidget {
-  final IconData icon; // Request 2: Icono añadido
+  final IconData icon;
   final String text;
   final TextStyle? textStyle;
   final VoidCallback onTap;
 
   const _ClickableNavigationItem({
-    required this.icon, // Request 2: Icono añadido
+    required this.icon,
     required this.text,
     this.textStyle,
     required this.onTap,
@@ -287,7 +263,6 @@ class _ClickableNavigationItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4.0),
-          // Request 2: Convertido en Row para incluir ícono
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [

@@ -8,7 +8,6 @@ import 'package:migue_iphones/presentation/providers/cart/cart_provider.dart';
 import 'package:migue_iphones/presentation/providers/products/products_provider.dart';
 import 'package:migue_iphones/presentation/widgets/shared/custom_app_bar.dart'; 
 import 'package:migue_iphones/presentation/widgets/shared/added_to_cart_dialog.dart';
-// 1. IMPORTAR EL FOOTER COMPARTIDO
 import 'package:migue_iphones/presentation/widgets/shared/app_footer.dart'; 
 
 class ProductScreen extends ConsumerWidget {
@@ -41,12 +40,10 @@ class ProductScreen extends ConsumerWidget {
           // Usamos CustomScrollView para el App Bar y el contenido
           return CustomScrollView(
             slivers: [
-              // 3. CORRECCIÓN: Usar TopNavigationBar (solo logo y carrito)
               const SliverToBoxAdapter(child: TopNavigationBar()),
               SliverToBoxAdapter(
                 child: _ProductDetailView(product: product),
               ),
-              // 2. AÑADIR EL FOOTER COMPARTIDO AL FINAL
               const SliverToBoxAdapter(child: AppFooter()),
             ],
           );
@@ -122,11 +119,19 @@ class _MobileLayout extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
     return Column(
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Image.network(product.imageUrl, fit: BoxFit.contain),
+        SizedBox(
+          height: screenWidth * 0.8,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: Image.network(
+              product.imageUrl, 
+              fit: BoxFit.contain,
+            ),
+          ),
         ),
         const SizedBox(height: 30),
         _ProductDetailsColumn(product: product),
@@ -204,7 +209,8 @@ class _ProductDetailsColumn extends ConsumerWidget {
               ref.read(cartNotifierProvider.notifier).addProductToCart(product);
               AddedToCartDialog.show(context, product);
             },
-            icon: const Icon(Icons.shopping_bag_outlined, size: 20),
+            // CORRECCIÓN DE ICONO:
+            icon: const Icon(Icons.add_shopping_cart_outlined, size: 20),
             label: const Text(
               'Añadir al Carrito',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
