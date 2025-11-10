@@ -1,14 +1,14 @@
 // lib/presentation/providers/cart/cart_provider.dart (CORREGIDO)
 
-import 'dart:convert'; // Para JSON
+import 'dart:convert';
 import 'package:migue_iphones/domain/models/cart_item.dart';
 import 'package:migue_iphones/domain/models/product.dart';
+import 'package:migue_iphones/presentation/providers/products/products_provider.dart'; // Importar products_provider
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Importar
+import 'package:shared_preferences/shared_preferences.dart';
 
 part 'cart_provider.g.dart';
 
-// Clave para guardar en SharedPreferences
 const String _cartStorageKey = 'migue_iphones_cart';
 
 // -------------------------------------------------------------
@@ -16,40 +16,61 @@ const String _cartStorageKey = 'migue_iphones_cart';
 // -------------------------------------------------------------
 
 @Riverpod(keepAlive: true)
-// CORRECCIÓN: Se extiende _$CartNotifier (generado), no _$AsyncNotifier
+// CORRECCIÓN: Extiende el alias generado _$CartNotifier
 class CartNotifier extends _$CartNotifier {
   
-  // El método build AHORA ES ASÍNCRONO para cargar desde el disco
+  // El método build AHORA es donde se realiza la limpieza.
   @override
   Future<List<CartItem>> build() async {
-    return _loadCartFromPrefs();
+    // Escuchar la lista de productos actual para usarla en la limpieza
+    // El .future nos da el valor real cuando ProductsNotifier termina de cargar.
+    final currentProducts = await ref.watch(productsNotifierProvider.future);
+    
+    // Cargar el carrito guardado
+    final savedCart = await _loadCartFromPrefs();
+
+    // 1. LIMPIEZA: Obtener los IDs de los productos actualmente cargados en la DB
+    final existingProductIds = currentProducts.map((p) => p.id).toSet();
+
+    // 2. Filtrar los items del carrito que NO existen en la DB
+    final cleanedCart = savedCart.where((item) {
+      // Si el ID del producto guardado está en los IDs existentes, se mantiene.
+      return existingProductIds.contains(item.product.id);
+    }).toList();
+
+    // 3. Si hubo cambios, guardar la lista limpia inmediatamente
+    if (cleanedCart.length != savedCart.length) {
+      await _saveCartToPrefs(cleanedCart);
+    }
+    
+    return cleanedCart;
   }
 
   // --- Métodos de Persistencia ---
 
   Future<List<CartItem>> _loadCartFromPrefs() async {
+    // Usamos esta función solo para leer el JSON guardado
     try {
       final prefs = await SharedPreferences.getInstance();
       final cartData = prefs.getStringList(_cartStorageKey);
 
       if (cartData == null) {
-        return []; // Carrito vacío si no hay datos guardados
+        return [];
       }
 
-      // Convertir la lista de Strings JSON de nuevo a List<CartItem>
+      // Convertir la lista de Strings JSON a List<CartItem>
       return cartData
           .map((itemString) => CartItem.fromJson(jsonDecode(itemString) as Map<String, dynamic>))
           .toList();
     } catch (e) {
       print('Error al cargar el carrito: $e');
-      return []; // Devolver vacío en caso de error de parseo
+      return [];
     }
   }
 
   Future<void> _saveCartToPrefs(List<CartItem> items) async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Convertir List<CartItem> a List<String> (JSON)
     final cartData = items
         .map((item) => jsonEncode(item.toJson()))
         .toList();
@@ -57,11 +78,9 @@ class CartNotifier extends _$CartNotifier {
     await prefs.setStringList(_cartStorageKey, cartData);
   }
 
-  // --- Métodos de Mutación (ahora actualizan el estado y guardan) ---
+  // --- Métodos de Mutación ---
 
-  // Método para AÑADIR un producto al carrito
   Future<void> addProductToCart(Product product) async {
-    // Obtenemos el estado actual (usando .value)
     final currentState = state.value ?? [];
     List<CartItem> updatedList = List.from(currentState);
 
@@ -70,7 +89,6 @@ class CartNotifier extends _$CartNotifier {
     );
 
     if (existingItemIndex != -1) {
-      // 2. Si existe: Incrementar la cantidad (respetando el stock)
       final existingItem = updatedList[existingItemIndex];
       if (existingItem.quantity < product.stock) {
         updatedList[existingItemIndex] = existingItem.copyWith(
@@ -78,18 +96,15 @@ class CartNotifier extends _$CartNotifier {
         );
       }
     } else {
-      // 3. Si no existe: Añadir el nuevo item (si hay stock)
       if (product.stock > 0) {
         updatedList.add(CartItem(product: product, quantity: 1));
       }
     }
 
-    // Actualizar el estado y guardar
     state = AsyncData(updatedList);
     await _saveCartToPrefs(updatedList);
   }
 
-  // Método para QUITAR un producto completamente del carrito
   Future<void> removeProductFromCart(int productId) async {
     final currentState = state.value ?? [];
     final updatedList = currentState.where((item) => item.product.id != productId).toList();
@@ -98,7 +113,6 @@ class CartNotifier extends _$CartNotifier {
     await _saveCartToPrefs(updatedList);
   }
   
-  // Método para DECREMENTAR la cantidad
   Future<void> decrementProductQuantity(int productId) async {
     final currentState = state.value ?? [];
     List<CartItem> updatedList = List.from(currentState);
@@ -111,12 +125,10 @@ class CartNotifier extends _$CartNotifier {
       final existingItem = updatedList[existingItemIndex];
       
       if (existingItem.quantity > 1) {
-        // Reducir cantidad
         updatedList[existingItemIndex] = existingItem.copyWith(
           quantity: existingItem.quantity - 1,
         );
       } else {
-        // Si la cantidad es 1, eliminar el item
         updatedList.removeAt(existingItemIndex);
       }
 
@@ -125,7 +137,6 @@ class CartNotifier extends _$CartNotifier {
     }
   }
   
-  // Método para VACIAR el carrito
   Future<void> clearCart() async {
     state = const AsyncData([]);
     await _saveCartToPrefs([]);
@@ -133,39 +144,31 @@ class CartNotifier extends _$CartNotifier {
 }
 
 // -------------------------------------------------------------
-// 2. Selectores (ACTUALIZADOS para manejar AsyncValue)
+// 2. Selectores (ACTUALIZADOS)
 // -------------------------------------------------------------
 
-// Selector para el CONTEO TOTAL de artículos (el "globo")
 @riverpod
 int cartTotalItems(CartTotalItemsRef ref) {
-  // Escucha al notifier principal (que ahora es AsyncValue)
   final cartAsync = ref.watch(cartNotifierProvider);
 
-  // Si está cargando o hay error, el total es 0
   if (cartAsync.isLoading || cartAsync.hasError || !cartAsync.hasValue) {
     return 0;
   }
   
   final cartItems = cartAsync.value!;
   
-  // Suma la cantidad de cada item
   return cartItems.fold(0, (total, item) => total + item.quantity);
 }
 
-// Selector para el PRECIO TOTAL del carrito
 @riverpod
 double cartTotalPrice(CartTotalPriceRef ref) {
-  // Escucha al notifier principal (que ahora es AsyncValue)
   final cartAsync = ref.watch(cartNotifierProvider);
 
-  // Si está cargando o hay error, el total es 0
   if (cartAsync.isLoading || cartAsync.hasError || !cartAsync.hasValue) {
     return 0.0;
   }
   
   final cartItems = cartAsync.value!;
   
-  // Suma el subtotal de cada item
   return cartItems.fold(0, (total, item) => total + item.subtotal);
 }

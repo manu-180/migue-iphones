@@ -1,4 +1,4 @@
-// lib/presentation/screens/home/home_screen.dart (ACTUALIZADO)
+// lib/presentation/screens/home/home_screen.dart (ACTUALIZADO CON SKELETON)
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +6,8 @@ import 'package:migue_iphones/presentation/widgets/shared/app_footer.dart';
 import 'package:migue_iphones/presentation/providers/products/products_provider.dart';
 import 'package:migue_iphones/presentation/widgets/home/product_card.dart';
 import 'package:migue_iphones/presentation/widgets/shared/custom_app_bar.dart'; 
+// 1. IMPORTAR EL SKELETON
+import 'package:migue_iphones/presentation/widgets/home/product_card_skeleton.dart';
 
 class HomeScreen extends StatelessWidget {
   static const String name = 'home_screen';
@@ -20,7 +22,6 @@ class HomeScreen extends StatelessWidget {
           SliverToBoxAdapter(child: CustomAppBar()), 
           SliverToBoxAdapter(child: _HeaderSection()),
           
-          // El Padding debe estar *dentro* del SliverGrid, no fuera
           _MainCatalogView(),
           
           SliverToBoxAdapter(child: AppFooter()),
@@ -76,32 +77,30 @@ class _MainCatalogView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final productsState = ref.watch(filteredProductsProvider);
     
-    // 2. Manejo de estado: Loading, Error, Data
+    // Definimos la cuadrícula aquí para reutilizarla en 'data' y 'loading'
+    const gridDelegate = SliverGridDelegateWithMaxCrossAxisExtent(
+      maxCrossAxisExtent: 300.0, 
+      mainAxisSpacing: 30.0,
+      crossAxisSpacing: 30.0,
+      childAspectRatio: 0.75, 
+    );
+
     return productsState.when(
       data: (products) {
         if (products.isEmpty) {
           return const SliverToBoxAdapter(
             child: Center(
-              heightFactor: 5, // Añade espacio vertical
+              heightFactor: 5,
               child: Text('No hay productos disponibles bajo el filtro actual.'),
             ),
           );
         }
 
-        // --- CORRECCIÓN DE LA CUADRÍCULA ---
+        // --- Cuadrícula con DATOS ---
         return SliverPadding(
-          // 1. Padding movido aquí
           padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 30.0),
           sliver: SliverGrid(
-            // 2. Usar 'WithMaxCrossAxisExtent' para responsive automático
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              // 3. Cada tarjeta tendrá un MÁXIMO de 300px de ancho
-              maxCrossAxisExtent: 300.0, 
-              mainAxisSpacing: 30.0,
-              crossAxisSpacing: 30.0,
-              // 4. Ajustar la proporción para que sea un poco menos alta
-              childAspectRatio: 0.75, 
-            ),
+            gridDelegate: gridDelegate,
             delegate: SliverChildBuilderDelegate(
               (context, index) {
                 final product = products[index];
@@ -112,11 +111,16 @@ class _MainCatalogView extends ConsumerWidget {
           ),
         );
       },
-      // Estado de Carga
-      loading: () => const SliverToBoxAdapter(
-        child: Center(
-          heightFactor: 5, // Añade espacio vertical
-          child: CircularProgressIndicator.adaptive(),
+      // --- CORRECCIÓN: Estado de Carga con SKELETON ---
+      loading: () => SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 30.0),
+        sliver: SliverGrid(
+          gridDelegate: gridDelegate,
+          delegate: SliverChildBuilderDelegate(
+            // Mostramos 6 tarjetas skeleton de carga
+            (context, index) => const ProductCardSkeleton(),
+            childCount: 6, 
+          ),
         ),
       ),
       // Estado de Error
@@ -124,7 +128,7 @@ class _MainCatalogView extends ConsumerWidget {
         print('Error de carga: $error');
         return SliverToBoxAdapter(
           child: Center(
-            heightFactor: 5, // Añade espacio vertical
+            heightFactor: 5,
             child: Text('Error al cargar el catálogo: $error'),
           ),
         );

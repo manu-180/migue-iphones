@@ -1,4 +1,4 @@
-// lib/presentation/widgets/shared/added_to_cart_dialog.dart (CORREGIDO)
+// lib/presentation/widgets/shared/added_to_cart_dialog.dart (ACTUALIZADO)
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -48,7 +48,6 @@ class AddedToCartDialog extends StatelessWidget {
               height: 120,
               child: Lottie.asset(
                 'assets/animations/carritoconfirmado.json',
-                // CORRECCIÓN: 'repeat' se establece en 'true' para que se repita.
                 repeat: true, 
               ),
             ),
@@ -72,10 +71,11 @@ class AddedToCartDialog extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Botón "Seguir comprando" (cierra el modal)
+                // CORRECCIÓN: Botón "Seguir comprando"
                 TextButton(
                   onPressed: () {
-                    context.pop(); // Cierra el diálogo
+                    // Cierra el diálogo y vuelve al catálogo (home)
+                    context.go('/'); 
                   },
                   child: Text(
                     'Seguir comprando',
@@ -83,7 +83,7 @@ class AddedToCartDialog extends StatelessWidget {
                   ),
                 ),
 
-                // Botón "Ir al carrito" (cierra y navega)
+                // Botón "Ir al carrito"
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.black,

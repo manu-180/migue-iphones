@@ -43,7 +43,12 @@ class MainApp extends ConsumerWidget {
     );
   }
 
+  // lib/main.dart (Actualización de _appTheme)
+
   ThemeData _appTheme() {
+    // Definición de las fuentes System-UI de Apple como fallback
+    const String appleFontFamily = 'SF Pro Display, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica Neue, Arial, sans-serif';
+    
     return ThemeData(
       // Estética Apple: colores neutros, tipografía limpia.
       colorScheme: ColorScheme.fromSeed(
@@ -62,6 +67,7 @@ class MainApp extends ConsumerWidget {
           color: Colors.black,
           fontSize: 20,
           fontWeight: FontWeight.bold,
+          fontFamily: appleFontFamily, // <-- Usar la familia de fuentes de Apple
         ),
       ),
       cardTheme: CardThemeData( // Usando CardThemeData
@@ -70,10 +76,13 @@ class MainApp extends ConsumerWidget {
           borderRadius: BorderRadius.circular(12),
         ),
       ),
+      // APLICAR LA FUENTE A TODO EL TEMA
       textTheme: const TextTheme(
         bodyLarge: TextStyle(color: Colors.black87),
         bodyMedium: TextStyle(color: Colors.black54),
         titleLarge: TextStyle(fontWeight: FontWeight.w600),
+      ).apply(
+        fontFamily: appleFontFamily, // <-- Aplicar a todo el TextTheme
       ),
       useMaterial3: true,
     );
