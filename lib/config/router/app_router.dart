@@ -2,38 +2,40 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:migue_iphones/presentation/layouts/main_layout.dart';
-import 'package:migue_iphones/presentation/screens/checkout/checkout_screen.dart';
 import 'package:migue_iphones/presentation/screens/checkout/payment_status_screen.dart';
-
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+// Layouts y Screens
+import 'package:migue_iphones/presentation/layouts/main_layout.dart';
 import 'package:migue_iphones/presentation/screens/home/home_screen.dart';
-import 'package:migue_iphones/presentation/screens/cart/cart_screen.dart';
 import 'package:migue_iphones/presentation/screens/product/product_screen.dart';
+import 'package:migue_iphones/presentation/screens/cart/cart_screen.dart';
+import 'package:migue_iphones/presentation/screens/checkout/checkout_screen.dart';
+
+// IMPORTANTE: Asegúrate de que esta ruta sea la correcta donde guardaste el archivo nuevo
 
 part 'app_router.g.dart';
 
 @Riverpod(keepAlive: true)
-GoRouter appRouter(AppRouterRef ref) {
+GoRouter appRouter(AppRouterRef ref) { // 1. CAMBIO: Usar Ref en lugar de AppRouterRef
   return GoRouter(
     initialLocation: '/',
     routes: [
-      // 1. HOME - AQUÍ ACTIVAMOS LOS FILTROS
+      // 1. HOME
       GoRoute(
         path: '/',
         name: HomeScreen.name,
         pageBuilder: (context, state) {
           return const NoTransitionPage(
             child: MainLayout(
-              showFilters: true, // <--- ÚNICA PANTALLA CON FILTROS
+              showFilters: true,
               child: HomeScreen(),
             ),
           );
         },
       ),
 
-      // 2. PRODUCTO DETALLE - SIN FILTROS (Por defecto false)
+      // 2. PRODUCTO DETALLE
       GoRoute(
         path: '/product/:id',
         name: ProductScreen.name,
@@ -41,7 +43,6 @@ GoRouter appRouter(AppRouterRef ref) {
           final productId = state.pathParameters['id'] ?? '0';
           return NoTransitionPage(
             child: MainLayout(
-              // showFilters es false por defecto, así que no se verán aquí
               child: ProductScreen(productId: productId),
             ),
           );
@@ -54,6 +55,8 @@ GoRouter appRouter(AppRouterRef ref) {
         name: CartScreen.name,
         builder: (context, state) => const CartScreen(),
       ),
+
+      // 4. CHECKOUT (Brick)
       GoRoute(
         path: '/checkout',
         name: CheckoutScreen.name,
@@ -63,25 +66,29 @@ GoRouter appRouter(AppRouterRef ref) {
           return CheckoutScreen(preferenceId: prefId, orderId: orderId);
         },
       ),
+
+      // 5. RUTAS DE RETORNO (Success, Failure, Pending)
+      // Usamos SuccessPaymentScreen y mapeamos external_reference a paymentId
       GoRoute(
         path: '/success',
-        builder: (context, state) => PaymentStatusScreen(
-          status: 'success',
-          externalReference: state.uri.queryParameters['external_reference'],
+        builder: (context, state) => SuccessPaymentScreen(
+          status: 'approved',
+          // Priorizamos external_reference (nuestro ID), sino collection_id (ID de MP)
+          paymentId: state.uri.queryParameters['external_reference'] ?? state.uri.queryParameters['collection_id'],
         ),
       ),
       GoRoute(
         path: '/failure',
-        builder: (context, state) => PaymentStatusScreen(
+        builder: (context, state) => SuccessPaymentScreen(
           status: 'failure',
-          externalReference: state.uri.queryParameters['external_reference'],
+          paymentId: state.uri.queryParameters['external_reference'],
         ),
       ),
       GoRoute(
         path: '/pending',
-        builder: (context, state) => PaymentStatusScreen(
+        builder: (context, state) => SuccessPaymentScreen(
           status: 'pending',
-          externalReference: state.uri.queryParameters['external_reference'],
+          paymentId: state.uri.queryParameters['external_reference'],
         ),
       ),
     ],

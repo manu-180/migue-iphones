@@ -16,7 +16,7 @@ import 'package:url_launcher/url_launcher.dart';
 // Formatter global
 final currencyFormatter = NumberFormat.currency(locale: 'es_AR', symbol: '\$', decimalDigits: 2);
 
-// --- 1. TARJETA DE ITEM DEL CARRITO ---
+// --- 1. TARJETA DE ITEM DEL CARRITO (ASUMIDO CORRECTO) ---
 class CartItemCard extends StatelessWidget {
   final CartItem item;
   final VoidCallback onIncrement;
@@ -253,104 +253,107 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
   }
   
   // --- FUNCIÓN DE PAGO PRINCIPAL (REUSANDO EDGE FUNCTION) ---
-  Future<void> _processPayment({required bool useTransparent}) async {
-    final checkoutData = _submitFormValidation();
-    if (checkoutData == null) return;
+Future<void> _processPayment({required bool useTransparent}) async {
+  final checkoutData = _submitFormValidation();
+  if (checkoutData == null) return;
 
-    print('DEBUG: Iniciando _processPayment (Transparent: $useTransparent)');
-    setState(() => _isProcessingPayment = true);
+  print('DEBUG: Iniciando _processPayment (Transparent: $useTransparent)');
+  setState(() => _isProcessingPayment = true);
 
-    try {
-      final cartItems = ref.read(cartNotifierProvider).value ?? [];
-      
-      final itemsPayload = cartItems.map((item) => {
-        'id': item.product.id,
-        'title': item.product.name,
-        'quantity': item.quantity,
-        'price': item.product.finalPrice, 
-        'picture_url': item.product.imageUrl, 
-      }).toList();
-      
-      final supabaseClient = Supabase.instance.client;
+  try {
+    final cartItems = ref.read(cartNotifierProvider).value ?? [];
+    
+    final itemsPayload = cartItems.map((item) => {
+      'id': item.product.id,
+      'title': item.product.name,
+      'quantity': item.quantity,
+      'price': item.product.finalPrice, 
+      'picture_url': item.product.imageUrl, 
+    }).toList();
+    
+    final supabaseClient = Supabase.instance.client;
 
-      print('DEBUG: Invocando Edge Function "create-preference"...');
+    print('DEBUG: Invocando Edge Function "create-preference"...');
 
-      final response = await supabaseClient.functions.invoke(
-        'create-preference',
-        body: {
-          'items': itemsPayload,
-          'payer_email': checkoutData['payer_email'],
-          'shipping_cost': checkoutData['shipping_cost'],
-          'shipping_address': {
-            'zip_code': checkoutData['zip_code'],
-            'street_name': checkoutData['address'],
-          },
-          'is_transparent': useTransparent,
+    final response = await supabaseClient.functions.invoke(
+      'create-preference',
+      body: {
+        'items': itemsPayload,
+        'payer_email': checkoutData['payer_email'],
+        'shipping_cost': checkoutData['shipping_cost'],
+        'shipping_address': {
+          'zip_code': checkoutData['zip_code'],
+          'street_name': checkoutData['address'],
         },
-      );
+        'is_transparent': useTransparent,
+      },
+    );
 
-      final data = response.data;
-      print('DEBUG: Respuesta de la función recibida (Status: ${response.status}).');
-      
-      // 1. CAPTURA DE ERRORES INTERNOS DEL SERVIDOR
-      if (data is Map && data.containsKey('error')) {
-          // Captura si la función devolvió un error explícito
-          throw Exception(data['error'] ?? 'Error desconocido de la función.');
-      }
-
-      if (useTransparent) {
-        // PAGO CON TARJETA (Brick)
-        if (data != null && data['preference_id'] != null) {
-          final prefId = data['preference_id'];
-          final orderId = data['order_id'];
-          
-          ref.read(isCartDrawerOpenProvider.notifier).state = false;
-          if (mounted) context.push('/checkout?preferenceId=$prefId&orderId=$orderId');
-        } else {
-           throw Exception('Edge Function no devolvió preference_id o order_id.');
-        }
-      } else {
-        // PAGO CON MERCADO PAGO (Redirección Externa)
-        if (data != null && data['init_point'] != null) {
-          // CORRECCIÓN DE TIPADO: Forzamos el cast a String para evitar el TypeError
-          if (data['init_point'] is String) { 
-            final url = Uri.parse(data['init_point'] as String);
-            if (await launchUrl(url, mode: LaunchMode.externalApplication)) {
-              ref.read(cartNotifierProvider.notifier).clearCart();
-              ref.read(isCartDrawerOpenProvider.notifier).state = false;
-            } else {
-              throw Exception('No se pudo abrir la URL de Mercado Pago.');
-            }
-          } else {
-            throw Exception('Respuesta de función inválida. Init point no es una URL válida.');
-          }
-        }
-      }
-
-    } catch (e) {
-      String errorMsg = 'Error desconocido al iniciar el pago.';
-      
-      // LOGS DETALLADOS
-      if (e is FunctionException) {
-         print('ERROR: FunctionException - Status: ${e.status}, Details: ${e.details}');
-         // Muestra el mensaje más específico del error (RLS violation, etc.)
-         errorMsg = e.details?['error'] ?? "a h nose";
-         
-      } else if (e is ClientException) {
-         print('ERROR: ClientException - $e');
-         errorMsg = 'Error de red o conexión: Verifique su CP o red.';
-      } else {
-         print('ERROR: General Catch - $e');
-         errorMsg = e.toString();
-      }
-      
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: Colors.red));
-      
-    } finally {
-      print('DEBUG: Proceso de pago finalizado.');
-      if (mounted) setState(() => _isProcessingPayment = false);
+    final data = response.data;
+    print('DEBUG: Respuesta de la función recibida (Status: ${response.status}).');
+    
+    // 1. CAPTURA DE ERRORES INTERNOS DEL SERVIDOR
+    if (data is Map<String, dynamic> && data.containsKey('error')) { 
+      // Captura si la función devolvió un error explícito
+      throw Exception(data['error'] ?? 'Error desconocido de la función.');
     }
+
+    if (useTransparent) {
+      // PAGO CON TARJETA (Brick)
+      if (data is Map<String, dynamic> && data['preference_id'] != null) {
+        final prefId = data['preference_id'];
+        final orderId = data['order_id'];
+        
+        ref.read(isCartDrawerOpenProvider.notifier).state = false;
+        if (mounted) context.push('/checkout?preferenceId=$prefId&orderId=$orderId');
+      } else {
+          throw Exception('Edge Function no devolvió preference_id o order_id.');
+      }
+    } else {
+      // PAGO CON MERCADO PAGO (Redirección Externa)
+      if (data is Map<String, dynamic> && data['init_point'] != null) {
+        // CORRECCIÓN DE TIPADO: Forzamos el cast a String para evitar el TypeError
+        if (data['init_point'] is String) { 
+          final url = Uri.parse(data['init_point'] as String);
+          if (await launchUrl(url, mode: LaunchMode.externalApplication)) {
+            ref.read(cartNotifierProvider.notifier).clearCart();
+            ref.read(isCartDrawerOpenProvider.notifier).state = false;
+          } else {
+            throw Exception('No se pudo abrir la URL de Mercado Pago.');
+          }
+        } else {
+          // Este caso se activa si el valor es 0 o un tipo no String (la causa del error original)
+          throw Exception('Respuesta de función inválida. Init point no es una URL válida.');
+        }
+      } else {
+          throw Exception('Edge Function no devolvió init_point o data inválida.');
+      }
+    }
+
+  } catch (e) {
+    String errorMsg = 'Error desconocido al iniciar el pago.';
+    
+    // LOGS DETALLADOS
+    if (e is FunctionException) {
+        print('ERROR: FunctionException - Status: ${e.status}, Details: ${e.details}');
+        // Muestra el mensaje más específico del error (RLS violation, etc.)
+        errorMsg = e.details?['error'] ?? "Error en el servidor (Edge Function).";
+        
+    } else if (e is ClientException) {
+        print('ERROR: ClientException - $e');
+        errorMsg = 'Error de red o conexión: Verifique su CP o red.';
+    } else {
+        print('ERROR: General Catch - $e');
+        errorMsg = e.toString();
+    }
+    
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg), backgroundColor: Colors.red));
+    
+  } finally {
+    print('DEBUG: Proceso de pago finalizado.');
+    if (mounted) setState(() => _isProcessingPayment = false);
   }
+}
   
   Future<void> _handlePayment(bool useTransparent) async {
     await _processPayment(useTransparent: useTransparent); 
