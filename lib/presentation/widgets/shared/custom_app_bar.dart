@@ -1,125 +1,127 @@
-// lib/presentation/widgets/shared/custom_app_bar.dart (REFACTORIZADO)
+// lib/presentation/widgets/shared/custom_app_bar.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
-import 'package:migue_iphones/presentation/providers/products/products_provider.dart';
 import 'package:migue_iphones/presentation/providers/cart/cart_provider.dart';
-import 'package:migue_iphones/presentation/screens/cart/cart_screen.dart';
+import 'package:migue_iphones/presentation/providers/sort_provider.dart';
+import 'package:migue_iphones/presentation/widgets/shared/product_search_bar.dart';
 
-// -------------------------------------------------------------------
-// WIDGET 1: La barra superior (Logo + Carrito) - REUTILIZABLE
-// -------------------------------------------------------------------
-class TopNavigationBar extends ConsumerWidget {
-  const TopNavigationBar({super.key});
+class CustomAppBar extends ConsumerWidget implements PreferredSizeWidget {
+  final bool showFilters;
+
+  const CustomAppBar({
+    super.key, 
+    this.showFilters = false,
+  });
+
+  @override
+  Size get preferredSize => const Size.fromHeight(100);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final int cartItemCount = ref.watch(cartTotalItemsProvider);
     final size = MediaQuery.of(context).size;
-    final isDesktop = size.width > 800;
+    final isDesktop = size.width > 900;
+    final double height = isDesktop ? 100.0 : 80.0;
+    
+    final cartItemCount = ref.watch(cartTotalItemsProvider);
+    final cartLayerLink = ref.watch(cartIconLayerLinkProvider);
 
-    return Container(
-      padding: EdgeInsets.symmetric(
-        vertical: 20, 
-        horizontal: isDesktop ? 50 : 20,
-      ),
-      color: Colors.white,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Logo Clickeable
-          InkWell(
-            onTap: () => context.go('/'), // Navega al Home
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              child: Row(
-                children: [
-                  const FaIcon(FontAwesomeIcons.apple, size: 30, color: Colors.black),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Migue IPhones',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 24,
-                    ),
+    return Material(
+      color: Colors.white, 
+      elevation: 4, 
+      shadowColor: Colors.black.withOpacity(0.1),
+      child: SizedBox(
+        height: height, 
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: isDesktop ? 40 : 20),
+          child: Row(
+            children: [
+              // 1. LOGO (IMAGEN)
+              InkWell(
+                onTap: () => context.go('/'),
+                borderRadius: BorderRadius.circular(8),
+                hoverColor: Colors.transparent,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                  // REEMPLAZO: Usamos tu imagen en lugar del Icono+Texto
+                  child: Image.asset(
+                    'assets/images/migueicon.png',
+                    height: 50, // Ajusta este valor si quieres el logo más grande o chico
+                    fit: BoxFit.contain,
                   ),
-                ],
+                ),
               ),
-            ),
-          ),
 
-          // Carrito (Usando el widget Badge)
-          Badge(
-            label: Text('$cartItemCount'),
-            isLabelVisible: cartItemCount > 0,
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            textColor: Colors.white,
-            child: IconButton(
-              icon: const Icon(Icons.shopping_cart_outlined, size: 30), 
-              onPressed: () {
-                context.pushNamed(CartScreen.name);
-              },
-            ),
+              const SizedBox(width: 20),
+
+              // 2. BUSCADOR
+              Expanded(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 500),
+                    child: const ProductSearchBar(),
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 20),
+
+              // 3. ICONOS Y FILTROS
+              if (isDesktop && showFilters) ...[
+                _buildSortDropdown(ref, context),
+                const SizedBox(width: 20),
+              ],
+
+              // 4. CARRITO
+              CompositedTransformTarget(
+                link: cartLayerLink,
+                child: Badge(
+                  label: Text('$cartItemCount'),
+                  isLabelVisible: cartItemCount > 0,
+                  backgroundColor: Colors.black,
+                  textColor: Colors.white,
+                  child: IconButton(
+                    icon: const Icon(Icons.shopping_cart_outlined, size: 28, color: Colors.black),
+                    hoverColor: Colors.transparent,
+                    splashColor: Colors.transparent,
+                    highlightColor: Colors.transparent,
+                    onPressed: () {
+                      ref.read(isCartDrawerOpenProvider.notifier).state = true;
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
-}
 
-// -------------------------------------------------------------------
-// WIDGET 2: El App Bar completo (Barra Superior + Filtros)
-// -------------------------------------------------------------------
-class CustomAppBar extends ConsumerWidget {
-  const CustomAppBar({super.key});
+  Widget _buildSortDropdown(WidgetRef ref, BuildContext context) {
+    final sortOption = ref.watch(sortOptionProvider);
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final currentFilter = ref.watch(productFilterNotifierProvider);
-    final filterNotifier = ref.read(productFilterNotifierProvider.notifier);
-    final size = MediaQuery.of(context).size;
-    final isDesktop = size.width > 800;
-
-    return Container(
-      color: Colors.white,
-      child: Column(
-        children: [
-          // 1. USA EL WIDGET REUTILIZABLE
-          const TopNavigationBar(),
-          
-          const SizedBox(height: 20),
-          
-          // 2. AÑADE LOS FILTROS
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisAlignment: isDesktop 
-                  ? MainAxisAlignment.center 
-                  : MainAxisAlignment.start,
-              children: ProductFilter.values.map((filter) {
-                final isSelected = currentFilter == filter;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: TextButton(
-                    onPressed: () => filterNotifier.setFilter(filter),
-                    child: Text(
-                      filter.displayValue,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w400,
-                        color: isSelected ? Colors.black : Colors.black54,
-                        decoration: isSelected ? TextDecoration.underline : TextDecoration.none,
-                        decorationColor: Colors.black,
-                        decorationThickness: 2,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<SortOption>(
+        value: sortOption,
+        icon: const Icon(Icons.sort, size: 20, color: Colors.black),
+        style: const TextStyle(color: Colors.black87, fontSize: 14),
+        dropdownColor: Colors.white,
+        focusColor: Colors.transparent,
+        autofocus: false,
+        borderRadius: BorderRadius.circular(8),
+        elevation: 2,
+        onChanged: (SortOption? newValue) {
+          if (newValue != null) {
+            ref.read(sortOptionProvider.notifier).state = newValue;
+          }
+        },
+        items: const [
+          DropdownMenuItem(value: SortOption.nombreAZ, child: Text('Nombre (A-Z)')),
+          DropdownMenuItem(value: SortOption.nombreZA, child: Text('Nombre (Z-A)')),
+          DropdownMenuItem(value: SortOption.precioMenorMayor, child: Text('Precio: Menor a Mayor')),
+          DropdownMenuItem(value: SortOption.precioMayorMenor, child: Text('Precio: Mayor a Menor')),
         ],
       ),
     );

@@ -1,4 +1,4 @@
-// lib/presentation/widgets/shared/app_footer.dart (SIN IMAGEN)
+// lib/presentation/widgets/shared/app_footer.dart (CORREGIDO)
 
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -9,7 +9,6 @@ import 'package:url_launcher/url_launcher.dart';
 class AppFooter extends StatelessWidget {
   const AppFooter({super.key});
 
-  // Función helper para lanzar URLs
   Future<void> _launchURL(String url) async {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
@@ -27,30 +26,33 @@ class AppFooter extends StatelessWidget {
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth > 800;
         
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
-          color: Colors.black,
-          width: double.infinity,
-          child: Column(
-            children: [
-              // --- Sección Principal (2 columnas) ---
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: isDesktop
-                    ? _DesktopFooterLayout(textStyle: textStyle, launchURL: _launchURL)
-                    : _MobileFooterLayout(textStyle: textStyle, launchURL: _launchURL),
-              ),
-              
-              const Divider(color: Colors.white30, height: 60),
-
-              // --- Copyright (Centrado) ---
-              Center(
-                child: Text(
-                  '© ${DateTime.now().year} Migue IPhones. Todos los derechos reservados.',
-                  style: textStyle?.copyWith(fontSize: 12),
+        // CORRECCIÓN: Usamos Material aquí para evitar el error "No Material widget found"
+        return Material(
+          color: Colors.black, // El color de fondo va en el Material
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
+            width: double.infinity,
+            child: Column(
+              children: [
+                // --- Sección Principal ---
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: isDesktop
+                      ? _DesktopFooterLayout(textStyle: textStyle, launchURL: _launchURL)
+                      : _MobileFooterLayout(textStyle: textStyle, launchURL: _launchURL),
                 ),
-              ),
-            ],
+                
+                const Divider(color: Colors.white30, height: 60),
+
+                // --- Copyright ---
+                Center(
+                  child: Text(
+                    '© ${DateTime.now().year} Migue IPhones. Todos los derechos reservados.',
+                    style: textStyle?.copyWith(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -62,7 +64,6 @@ class AppFooter extends StatelessWidget {
 // LAYOUTS RESPONSIVE INTERNOS
 // ---------------------------------------------------
 
-// Layout para pantallas anchas (2 Columnas)
 class _DesktopFooterLayout extends StatelessWidget {
   final TextStyle? textStyle;
   final Future<void> Function(String) launchURL;
@@ -73,16 +74,13 @@ class _DesktopFooterLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      // 1. ELIMINADA LA COLUMNA DE IMAGEN
       children: [
-        // Columna 1: Contacto
         Expanded(
-          flex: 1, // Ajustado a 1
+          flex: 1,
           child: _ContactInfoColumn(textStyle: textStyle, launchURL: launchURL),
         ),
-        // Columna 2: Navegación
         Expanded(
-          flex: 1, // Ajustado a 1
+          flex: 1,
           child: _NavigationColumn(textStyle: textStyle),
         ),
       ],
@@ -90,7 +88,6 @@ class _DesktopFooterLayout extends StatelessWidget {
   }
 }
 
-// Layout para pantallas móviles (Apilado)
 class _MobileFooterLayout extends StatelessWidget {
   final TextStyle? textStyle;
   final Future<void> Function(String) launchURL;
@@ -102,9 +99,7 @@ class _MobileFooterLayout extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start, 
       children: [
-        // 2. IMAGEN Y SIZEDBOX ELIMINADOS
         _ContactInfoColumn(textStyle: textStyle, launchURL: launchURL),
-        // Columna de Navegación eliminada en móvil (como se solicitó)
       ],
     );
   }
@@ -112,10 +107,9 @@ class _MobileFooterLayout extends StatelessWidget {
 
 
 // ---------------------------------------------------
-// WIDGETS DE CONTENIDO COMPARTIDOS
+// WIDGETS DE CONTENIDO
 // ---------------------------------------------------
 
-// Columna 1: Información de contacto
 class _ContactInfoColumn extends StatelessWidget {
   final TextStyle? textStyle;
   final Future<void> Function(String) launchURL;
@@ -160,7 +154,6 @@ class _ContactInfoColumn extends StatelessWidget {
   }
 }
 
-// Columna 2: Navegación
 class _NavigationColumn extends StatelessWidget {
   final TextStyle? textStyle;
   const _NavigationColumn({this.textStyle});
@@ -182,28 +175,24 @@ class _NavigationColumn extends StatelessWidget {
           icon: FontAwesomeIcons.store, 
           text: 'Catálogo', 
           textStyle: textStyle,
-          onTap: () => context.go('/'), // Vuelve al Home
+          onTap: () => context.go('/'),
         ),
         const SizedBox(height: 10),
         _ClickableNavigationItem(
           icon: FontAwesomeIcons.shoppingCart, 
           text: 'Mi Carrito',
           textStyle: textStyle,
-          onTap: () => context.pushNamed(CartScreen.name), // Abre el carrito
+          onTap: () => context.pushNamed(CartScreen.name),
         ),
       ],
     );
   }
 }
 
-// 3. Columna 3: Imagen (WIDGET ELIMINADO)
-
-
 // ---------------------------------------------------
 // Items Clickeables
 // ---------------------------------------------------
 
-// Widget para un item de contacto (con ícono)
 class _ClickableContactItem extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -240,7 +229,6 @@ class _ClickableContactItem extends StatelessWidget {
   }
 }
 
-// Widget para un item de navegación (solo texto)
 class _ClickableNavigationItem extends StatelessWidget {
   final IconData icon;
   final String text;

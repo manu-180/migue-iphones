@@ -6,7 +6,7 @@ part of 'cart_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$cartTotalItemsHash() => r'501e7642234d78f1d767a0777c3186050f9b087a';
+String _$cartTotalItemsHash() => r'92c001024c5339fca0b263b2c0c66a18563bdc22';
 
 /// See also [cartTotalItems].
 @ProviderFor(cartTotalItems)
@@ -23,7 +23,7 @@ final cartTotalItemsProvider = AutoDisposeProvider<int>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef CartTotalItemsRef = AutoDisposeProviderRef<int>;
-String _$cartTotalPriceHash() => r'68f7642fdcf3b2052100e219520ce308840f82b4';
+String _$cartTotalPriceHash() => r'9577970f2e7bbf84e9c32ca074cf7f1e38afa127';
 
 /// See also [cartTotalPrice].
 @ProviderFor(cartTotalPrice)
@@ -40,7 +40,7 @@ final cartTotalPriceProvider = AutoDisposeProvider<double>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef CartTotalPriceRef = AutoDisposeProviderRef<double>;
-String _$cartNotifierHash() => r'f302675c252454a8ac6de67005fb999507cc5114';
+String _$cartNotifierHash() => r'268e6204d0b80da7a91ef6e8183a140af084f45b';
 
 /// See also [CartNotifier].
 @ProviderFor(CartNotifier)

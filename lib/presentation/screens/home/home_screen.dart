@@ -1,13 +1,14 @@
-// lib/presentation/screens/home/home_screen.dart (ACTUALIZADO CON SKELETON)
+// lib/presentation/screens/home/home_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:migue_iphones/presentation/widgets/shared/app_footer.dart'; 
 import 'package:migue_iphones/presentation/providers/products/products_provider.dart';
+import 'package:migue_iphones/presentation/providers/search_provider.dart';
+import 'package:migue_iphones/presentation/widgets/home/category_filter_bar.dart'; // IMPORTAR NUEVO WIDGET
 import 'package:migue_iphones/presentation/widgets/home/product_card.dart';
-import 'package:migue_iphones/presentation/widgets/shared/custom_app_bar.dart'; 
-// 1. IMPORTAR EL SKELETON
 import 'package:migue_iphones/presentation/widgets/home/product_card_skeleton.dart';
+import 'package:migue_iphones/presentation/widgets/shared/app_footer.dart'; 
+import 'package:migue_iphones/presentation/widgets/shared/no_search_results.dart';
 
 class HomeScreen extends StatelessWidget {
   static const String name = 'home_screen';
@@ -16,24 +17,21 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(child: CustomAppBar()), 
-          SliverToBoxAdapter(child: _HeaderSection()),
-          
-          _MainCatalogView(),
-          
-          SliverToBoxAdapter(child: AppFooter()),
-        ],
-      ),
+    return CustomScrollView(
+      slivers: [
+        const SliverToBoxAdapter(child: _HeaderSection()),
+        
+        // --- AQUÍ INSERTAMOS LA BARRA DE CATEGORÍAS ---
+        const SliverToBoxAdapter(child: CategoryFilterBar()),
+        const SliverToBoxAdapter(child: SizedBox(height: 20)), 
+        // ----------------------------------------------
+
+        const _MainCatalogView(),
+        const SliverToBoxAdapter(child: AppFooter()),
+      ],
     );
   }
 }
-
-// ----------------------------------------------------------------------
-// WIDGETS DE LA PANTALLA PRINCIPAL
-// ----------------------------------------------------------------------
 
 class _HeaderSection extends StatelessWidget {
   const _HeaderSection();
@@ -41,8 +39,7 @@ class _HeaderSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
-      color: Theme.of(context).colorScheme.background,
+      padding: const EdgeInsets.fromLTRB(40, 40, 40, 10), // Reduje el padding inferior
       child: Column(
         children: [
           Text(
@@ -62,13 +59,11 @@ class _HeaderSection extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 30),
         ],
       ),
     );
   }
 }
-
 
 class _MainCatalogView extends ConsumerWidget {
   const _MainCatalogView();
@@ -76,8 +71,8 @@ class _MainCatalogView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final productsState = ref.watch(filteredProductsProvider);
+    final searchQuery = ref.watch(searchQueryProvider);
     
-    // Definimos la cuadrícula aquí para reutilizarla en 'data' y 'loading'
     const gridDelegate = SliverGridDelegateWithMaxCrossAxisExtent(
       maxCrossAxisExtent: 300.0, 
       mainAxisSpacing: 30.0,
@@ -88,17 +83,13 @@ class _MainCatalogView extends ConsumerWidget {
     return productsState.when(
       data: (products) {
         if (products.isEmpty) {
-          return const SliverToBoxAdapter(
-            child: Center(
-              heightFactor: 5,
-              child: Text('No hay productos disponibles bajo el filtro actual.'),
-            ),
+          return SliverToBoxAdapter(
+            child: NoSearchResults(query: searchQuery),
           );
         }
 
-        // --- Cuadrícula con DATOS ---
         return SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 30.0),
+          padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
           sliver: SliverGrid(
             gridDelegate: gridDelegate,
             delegate: SliverChildBuilderDelegate(
@@ -111,21 +102,17 @@ class _MainCatalogView extends ConsumerWidget {
           ),
         );
       },
-      // --- CORRECCIÓN: Estado de Carga con SKELETON ---
       loading: () => SliverPadding(
         padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 30.0),
         sliver: SliverGrid(
           gridDelegate: gridDelegate,
           delegate: SliverChildBuilderDelegate(
-            // Mostramos 6 tarjetas skeleton de carga
             (context, index) => const ProductCardSkeleton(),
             childCount: 6, 
           ),
         ),
       ),
-      // Estado de Error
       error: (error, stack) {
-        print('Error de carga: $error');
         return SliverToBoxAdapter(
           child: Center(
             heightFactor: 5,
