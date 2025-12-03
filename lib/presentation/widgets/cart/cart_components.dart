@@ -203,9 +203,9 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
       return null;
     }
 
-    // MAPEO INTELIGENTE: Nombre Visible -> Código API
-    String carrierSlug = 'correo-argentino'; // Default
-    String serviceCode = 'clasico'; // Default
+    // MAPEO FINAL (La clave del éxito)
+    String carrierSlug = 'correo-argentino';
+    String serviceCode = 'standard'; // <--- CAMBIO CRÍTICO: Usamos 'standard' para todos
 
     if (selectedRate.carrierName.toLowerCase().contains('andreani')) {
       carrierSlug = 'andreani';
@@ -213,7 +213,7 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
     } else {
       // Correo Argentino
       carrierSlug = 'correo-argentino';
-      serviceCode = 'clasico'; // O 'paq-ar' dependiendo de tu cuenta
+      serviceCode = 'standard'; // Antes decia 'clasico', Envia prefiere 'standard'
     }
 
     return { 
@@ -226,7 +226,6 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
             'city': _cityController.text, 
             'state': _selectedProvince,
         },
-        // Enviamos los códigos técnicos al backend
         'carrier_slug': carrierSlug,
         'service_level': serviceCode,
     };

@@ -102163,18 +102163,17 @@ o=A.beK(r,p.c,p.y[1])
 q!==$&&A.ad()
 r.ch=o
 q=o}s.e2(0,q,t.yq).CH(m.a.a)},
-aqL(){var s,r,q,p,o=this,n="andreani"
-o.a6(new A.aEf(o))
-s=o.w.gM()
+aqL(){var s,r,q,p=this,o="andreani"
+p.a6(new A.aEf(p))
+s=p.w.gM()
 s.e=!0
 s.TH()
 if(!s.o9())return null
-r=o.gf5().e2(0,$.aMD(),t.Av)
-if(r==null){o.a6(new A.aEg(o))
-return null}if(B.c.p(r.a.toLowerCase(),n)){q=n
-p="standard"}else{q="correo-argentino"
-p="clasico"}s=t.N
-return A.a4(["shipping_cost",r.c,"payer_email",o.x.a.a,"shipping_address",A.a4(["zip_code",o.y.a.a,"street_name",o.z.a.a,"street_number",o.Q.a.a,"city",o.as.a.a,"state",o.at],s,t.T),"carrier_slug",q,"service_level",p],s,t.z)},
+r=p.gf5().e2(0,$.aMD(),t.Av)
+if(r==null){p.a6(new A.aEg(p))
+return null}q=B.c.p(r.a.toLowerCase(),o)?o:"correo-argentino"
+s=t.N
+return A.a4(["shipping_cost",r.c,"payer_email",p.x.a.a,"shipping_address",A.a4(["zip_code",p.y.a.a,"street_name",p.z.a.a,"street_number",p.Q.a.a,"city",p.as.a.a,"state",p.at],s,t.T),"carrier_slug",q,"service_level","standard"],s,t.z)},
 t9(a){return this.aom(a)},
 aom(a4){var s=0,r=A.H(t.H),q,p=2,o=[],n=[],m=this,l,k,j,i,h,g,f,e,d,c,b,a,a0,a1,a2,a3
 var $async$t9=A.D(function(a5,a6){if(a5===1){o.push(a6)
