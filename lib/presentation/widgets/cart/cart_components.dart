@@ -230,7 +230,7 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
         'title': item.product.name,
         'quantity': item.quantity,
         'price': item.product.finalPrice, 
-        // FIX: Usamos un string vacío porque tu modelo CartItem no tiene tallas
+        // ⚠️ CORRECCIÓN CRÍTICA: Eliminamos el acceso a selected_size dinámico que causaba el crash
         'selected_size': '', 
       }).toList();
       
@@ -389,7 +389,6 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
                         value: rate,
                         groupValue: selectedRate,
                         title: Text(rate.carrierName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                        // FIX: Construimos el texto aquí ya que el modelo no tiene el getter
                         subtitle: Text("Llega en ${rate.minDays}-${rate.maxDays} días hábiles", style: const TextStyle(fontSize: 12)),
                         secondary: Text(currencyFormatter.format(rate.price), style: const TextStyle(fontWeight: FontWeight.bold)),
                         activeColor: Colors.black,
