@@ -203,6 +203,19 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
       return null;
     }
 
+    // MAPEO INTELIGENTE: Nombre Visible -> Código API
+    String carrierSlug = 'correo-argentino'; // Default
+    String serviceCode = 'clasico'; // Default
+
+    if (selectedRate.carrierName.toLowerCase().contains('andreani')) {
+      carrierSlug = 'andreani';
+      serviceCode = 'standard';
+    } else {
+      // Correo Argentino
+      carrierSlug = 'correo-argentino';
+      serviceCode = 'clasico'; // O 'paq-ar' dependiendo de tu cuenta
+    }
+
     return { 
         'shipping_cost': selectedRate.price,
         'payer_email': _emailController.text,
@@ -213,7 +226,9 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
             'city': _cityController.text, 
             'state': _selectedProvince,
         },
-        'shipping_method': selectedRate.carrierName,
+        // Enviamos los códigos técnicos al backend
+        'carrier_slug': carrierSlug,
+        'service_level': serviceCode,
     };
   }
   
@@ -244,6 +259,9 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
           'shipping_cost': checkoutData['shipping_cost'],
           'shipping_address': checkoutData['shipping_address'],
           'is_transparent': useTransparent,
+          // AGREGAMOS ESTOS DOS:
+          'carrier_slug': checkoutData['carrier_slug'], 
+          'service_level': checkoutData['service_level'],
         },
       );
 

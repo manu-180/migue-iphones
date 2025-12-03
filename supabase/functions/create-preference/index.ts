@@ -17,10 +17,10 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { items, shipping_cost, shipping_address, payer_email } = await req.json()
+    // 1. Recibimos carrier_slug y service_level del Frontend
+    const { items, shipping_cost, shipping_address, payer_email, carrier_slug, service_level } = await req.json()
     console.log("📦 [CreatePref] Nueva compra:", payer_email);
 
-    // 1. Preparar Items
     const orderItemsDb = items.map((item: any) => ({
       id: item.id,
       title: item.title,
@@ -32,11 +32,10 @@ serve(async (req) => {
     const itemsTotal = items.reduce((sum: number, item: any) => sum + (Number(item.price) * Number(item.quantity)), 0);
     const totalAmount = itemsTotal + (shipping_cost || 0);
     
-    // Si hay dirección, es envío.
     const hasAddress = shipping_address && (shipping_address.street_name || shipping_address.address);
     const deliveryType = hasAddress ? 'envio' : 'retiro';
 
-    // 2. Insertar en DB
+    // 2. Insertar en DB (GUARDAMOS EL CARRIER ELEGIDO)
     const { data: newOrder, error: orderError } = await supabase
       .from('orders_pulpiprint')
       .insert({
@@ -47,19 +46,22 @@ serve(async (req) => {
         delivery_type: deliveryType, 
         shipping_address: shipping_address || {},
         order_items: orderItemsDb,
+        // Guardamos la elección del usuario
+        carrier_slug: carrier_slug || 'correo-argentino', 
+        service_level: service_level || 'standard'
       })
       .select('id')
       .single();
 
     if (orderError) throw new Error(`Error DB: ${orderError.message}`);
 
-    // 3. Mercado Pago Preference
+    // 3. Mercado Pago
     const client = new MercadoPagoConfig({ accessToken: Deno.env.get('MP_ACCESS_TOKEN') || '' });
     const preference = new Preference(client);
 
     const mpItems = items.map((item: any) => ({
       id: item.id.toString(),
-      title: `${item.title} ${item.selected_size ? `(${item.selected_size})` : ''}`,
+      title: item.title,
       quantity: Number(item.quantity),
       unit_price: Number(item.price),
       currency_id: 'ARS',
@@ -83,7 +85,7 @@ serve(async (req) => {
           pending: `${baseUrl}/pending`,
         },
         auto_return: 'approved',
-        notification_url: webhookUrl // VITAL
+        notification_url: webhookUrl
       }
     });
 
