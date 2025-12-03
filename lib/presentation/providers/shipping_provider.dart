@@ -28,7 +28,7 @@ class ShippingRatesNotifier extends StateNotifier<AsyncValue<List<ShippingRate>>
       ShippingRate(
         carrierName: "Andreani",
         serviceName: "Prioritario",
-        price: 8900.0,
+        price: 0,
         minDays: 1,
         maxDays: 3,
       ),
