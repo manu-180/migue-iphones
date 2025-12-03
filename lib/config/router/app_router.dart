@@ -67,13 +67,11 @@ GoRouter appRouter(AppRouterRef ref) { // 1. CAMBIO: Usar Ref en lugar de AppRou
         },
       ),
 
-      // 5. RUTAS DE RETORNO (Success, Failure, Pending)
-      // Usamos SuccessPaymentScreen y mapeamos external_reference a paymentId
       GoRoute(
         path: '/success',
-        builder: (context, state) => SuccessPaymentScreen(
-          status: 'approved',
-          // Priorizamos external_reference (nuestro ID), sino collection_id (ID de MP)
+        builder: (context, state) => SuccessPaymentScreen( // <--- Asegúrate que se llame SuccessPaymentScreen
+          status: 'success',
+          // CORRECCIÓN: Usamos 'paymentId', no 'externalReference'
           paymentId: state.uri.queryParameters['external_reference'] ?? state.uri.queryParameters['collection_id'],
         ),
       ),
