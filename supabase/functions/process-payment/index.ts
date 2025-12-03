@@ -1,4 +1,3 @@
-// supabase/functions/process-payment/index.ts
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { MercadoPagoConfig, Payment } from 'npm:mercadopago';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8';
@@ -21,9 +20,7 @@ serve(async (req)=>{
     const { transaction_amount, token, description, payment_method_id, issuer_id, external_reference, installments, payer } = body;
     const payerEmail = payer?.email || body.email || 'unknown@pulpiprint.com';
     
-    console.log(`💳 [ProcessPayment] Procesando Brick: ${external_reference}`);
     const payment = new Payment(client);
-    
     const webhookUrl = 'https://ilwxrxcpwbzwhpmyeyln.supabase.co/functions/v1/mp-webhook-receiver';
 
     const paymentData = {
@@ -35,13 +32,11 @@ serve(async (req)=>{
       issuer_id: issuer_id,
       payer: { email: payerEmail },
       external_reference: external_reference,
-      notification_url: webhookUrl // NECESARIO
+      notification_url: webhookUrl 
     };
 
     const result = await payment.create({ body: paymentData });
-    console.log(`✅ [ProcessPayment] Resultado: ${result.status}`);
 
-    // Nota: Aunque el webhook lo actualizará, lo actualizamos aquí para feedback inmediato al frontend
     if (external_reference) {
       await supabase.from('orders_pulpiprint').update({
         status: result.status === 'approved' ? 'approved' : 'pending',
@@ -51,7 +46,6 @@ serve(async (req)=>{
 
     return new Response(JSON.stringify({ status: result.status, id: result.id }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
   } catch (error) {
-    console.error("💥 [ProcessPayment] Error:", error);
     return new Response(JSON.stringify({ error: error.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 });
   }
 });

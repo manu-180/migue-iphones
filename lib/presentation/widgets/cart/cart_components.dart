@@ -145,7 +145,7 @@ class EmptyCartView extends StatelessWidget {
   }
 }
 
-// --- 3. RESUMEN DE ORDEN (FORMULARIO COMPLETAMENTE RENOVADO) ---
+// --- 3. RESUMEN DE ORDEN ---
 class OrderSummaryCard extends ConsumerStatefulWidget {
   final double totalPrice; 
 
@@ -203,7 +203,6 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
       return null;
     }
 
-    // Devolvemos el objeto completo con la dirección estructurada
     return { 
         'shipping_cost': selectedRate.price,
         'payer_email': _emailController.text,
@@ -231,10 +230,8 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
         'title': item.product.name,
         'quantity': item.quantity,
         'price': item.product.finalPrice, 
-        // CORRECCIÓN 2: Accedemos a la propiedad seleccionada (asumiendo que en tu modelo se llama selected_size o similar)
-        // Si no existe, enviamos un string vacío o null. 
-        // Aquí intento adivinar el nombre, si vuelve a fallar, usa item.selected_size (snake_case)
-        'selected_size': (item as dynamic).selected_size ?? '', 
+        // FIX: Usamos un string vacío porque tu modelo CartItem no tiene tallas
+        'selected_size': '', 
       }).toList();
       
       final supabaseClient = Supabase.instance.client;
@@ -392,7 +389,7 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
                         value: rate,
                         groupValue: selectedRate,
                         title: Text(rate.carrierName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                        // CORRECCIÓN 1: Calculamos el texto aquí en lugar de usar .deliveryEstimate
+                        // FIX: Construimos el texto aquí ya que el modelo no tiene el getter
                         subtitle: Text("Llega en ${rate.minDays}-${rate.maxDays} días hábiles", style: const TextStyle(fontSize: 12)),
                         secondary: Text(currencyFormatter.format(rate.price), style: const TextStyle(fontWeight: FontWeight.bold)),
                         activeColor: Colors.black,

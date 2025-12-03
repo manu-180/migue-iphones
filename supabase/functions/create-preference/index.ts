@@ -1,4 +1,3 @@
-// supabase/functions/create-preference/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { MercadoPagoConfig, Preference } from 'npm:mercadopago';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8';
@@ -19,9 +18,9 @@ serve(async (req) => {
 
   try {
     const { items, shipping_cost, shipping_address, payer_email } = await req.json()
-    console.log("📦 [CreatePref] Iniciando para:", payer_email);
+    console.log("📦 [CreatePref] Nueva compra:", payer_email);
 
-    // 1. Preparar Items DB
+    // 1. Preparar Items
     const orderItemsDb = items.map((item: any) => ({
       id: item.id,
       title: item.title,
@@ -33,11 +32,11 @@ serve(async (req) => {
     const itemsTotal = items.reduce((sum: number, item: any) => sum + (Number(item.price) * Number(item.quantity)), 0);
     const totalAmount = itemsTotal + (shipping_cost || 0);
     
-    // Lógica Envío: Si hay dirección con calle, es envío.
-    const hasAddress = shipping_address && shipping_address.street_name;
+    // Si hay dirección, es envío.
+    const hasAddress = shipping_address && (shipping_address.street_name || shipping_address.address);
     const deliveryType = hasAddress ? 'envio' : 'retiro';
 
-    // 2. Crear Orden Supabase
+    // 2. Insertar en DB
     const { data: newOrder, error: orderError } = await supabase
       .from('orders_pulpiprint')
       .insert({
@@ -53,15 +52,14 @@ serve(async (req) => {
       .single();
 
     if (orderError) throw new Error(`Error DB: ${orderError.message}`);
-    console.log(`✅ [CreatePref] Orden creada: ${newOrder.id} (Tipo: ${deliveryType})`);
 
-    // 3. Mercado Pago
+    // 3. Mercado Pago Preference
     const client = new MercadoPagoConfig({ accessToken: Deno.env.get('MP_ACCESS_TOKEN') || '' });
     const preference = new Preference(client);
 
     const mpItems = items.map((item: any) => ({
       id: item.id.toString(),
-      title: item.title,
+      title: `${item.title} ${item.selected_size ? `(${item.selected_size})` : ''}`,
       quantity: Number(item.quantity),
       unit_price: Number(item.price),
       currency_id: 'ARS',
@@ -95,7 +93,7 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error("💥 [CreatePref] Error:", error);
+    console.error("💥 Error:", error);
     return new Response(JSON.stringify({ error: error.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 })
   }
 });

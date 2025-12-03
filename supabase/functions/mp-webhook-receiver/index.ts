@@ -1,9 +1,9 @@
-// supabase/functions/mp-webhook-receiver/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8';
 
 const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 
+// DATOS DE ORIGEN (Tus datos reales)
 const ORIGIN_DATA = {
   name: "Manuel Navarro", 
   company: "MNL Tecno",
@@ -20,18 +20,18 @@ const ORIGIN_DATA = {
 
 const PARCEL_DATA = { content: "Accesorios", amount: 1, type: "box", dimensions: { length: 15, width: 10, height: 5 }, weight: 0.5 };
 
-// Función para convertir la provincia del Dropdown al código de Envia
+// Helper simple para código de provincia
 function getStateCode(stateName: string) {
-  if (!stateName) return "B"; // Default Provincia
+  if (!stateName) return "B"; 
   const lower = stateName.toLowerCase();
-  if (lower.includes("capital") || lower.includes("caba")) return "C"; // Capital Federal
-  return "B"; // Todo lo demás en este ejemplo lo tratamos como Provincia BsAs (simplificado para prueba)
+  if (lower.includes("capital") || lower.includes("caba") || lower.includes("autonoma")) return "C"; 
+  return "B"; 
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  console.log("🔔 [Webhook] RECIBIDO");
+  console.log("🔔 [Webhook PROD] Recibido");
 
   try {
     const url = new URL(req.url);
@@ -49,20 +49,23 @@ serve(async (req) => {
 
     if (!paymentId) return new Response(JSON.stringify({ message: 'Ignored' }), { status: 200 });
 
+    // 2. Verificar MP
     const mpAccessToken = Deno.env.get('MP_ACCESS_TOKEN');
     const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
       headers: { 'Authorization': `Bearer ${mpAccessToken}` }
     });
 
-    if (!mpResponse.ok) return new Response(JSON.stringify({ error: 'Invalid ID MP' }), { status: 200 });
+    if (!mpResponse.ok) return new Response(JSON.stringify({ error: 'Invalid ID MP' }), { status: 200 }); 
 
     const paymentDetails = await mpResponse.json();
     const newStatus = paymentDetails.status;
     const externalReference = paymentDetails.external_reference;
 
+    console.log(`ℹ️ Pago: ${paymentId} | Estado: ${newStatus} | Ref: ${externalReference}`);
+
     if (!externalReference) return new Response(JSON.stringify({ message: 'No Ref' }), { status: 200 });
 
-    // Actualizar DB
+    // 3. Actualizar DB
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
     const { data: orderData, error: updateError } = await supabase
@@ -74,53 +77,40 @@ serve(async (req) => {
 
     if (updateError) throw new Error("DB Error");
 
+    // 4. GENERAR ETIQUETA REAL (Solo si es envio y no tiene tracking)
     const needsShipping = newStatus === 'approved' && orderData.delivery_type === 'envio' && !orderData.tracking_number;
     
     if (needsShipping) {
-      console.log("🚚 Generando etiqueta (Datos Estructurados)...");
+      console.log("🚚 Generando etiqueta REAL...");
       const enviaToken = Deno.env.get('ENVIA_ACCESS_TOKEN'); 
       
       const addr = orderData.shipping_address || {};
-      
-      // DATOS LIMPIOS DEL FRONTEND
-      const street = addr.street_name || "Calle Desconocida";
-      const number = addr.street_number || "0";
-      const city = addr.city || "Buenos Aires";
-      const stateCode = getStateCode(addr.state);
-      const zip = addr.zip_code || "1000";
-
       const destName = orderData.payer_email ? orderData.payer_email.split('@')[0] : "Cliente";
-
+      
+      // AQUI USAMOS TUS CAMPOS LIMPIOS DE FLUTTER
       const shippingBody = {
         origin: ORIGIN_DATA,
         destination: {
           name: destName,
           email: orderData.payer_email || "email@unknown.com",
           phone: "5491100000000",
-          street: street,
-          number: number,
-          district: city, // En Argentina, District suele ser el Barrio/Localidad
-          city: city,     // City el Partido/Departamento
-          state: stateCode,
+          street: addr.street_name || addr.address || "Calle Desconocida", 
+          number: addr.street_number || "0", // Número separado
+          district: addr.city || "Buenos Aires",
+          city: addr.city || "Buenos Aires",
+          state: getStateCode(addr.state || "Buenos Aires"), 
           country: "AR",
-          postalCode: zip
+          postalCode: addr.zip_code || "1000"
         },
         packages: [PARCEL_DATA],
-        shipment: { 
-            carrier: "andreani", 
-            service: "standard", 
-            type: 1 
-        },
-        settings: { 
-            currency: "ARS", 
-            labelFormat: "pdf", 
-            printFormat: "PDF", 
-            printSize: "STOCK_4X6"
-        }
+        // Usamos ANDREANI que es robusto
+        shipment: { carrier: "andreani", service: "standard", type: 1 },
+        settings: { currency: "ARS", labelFormat: "pdf", printFormat: "PDF", printSize: "STOCK_4X6" }
       };
 
-      console.log("📤 Payload Limpio:", JSON.stringify(shippingBody));
+      console.log("📤 Payload:", JSON.stringify(shippingBody));
 
+      // URL DE PRODUCCIÓN
       const enviaRes = await fetch('https://api.envia.com/ship/generate/', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${enviaToken}` },
@@ -135,7 +125,7 @@ serve(async (req) => {
 
       if (enviaData && enviaData.meta === 'generate') {
         const trackingNumber = enviaData.data[0].trackingNumber;
-        console.log(`🎉 TRACKING: ${trackingNumber}`);
+        console.log(`🎉 TRACKING CREADO: ${trackingNumber}`);
         await supabase.from('orders_pulpiprint').update({ tracking_number: trackingNumber }).eq('id', externalReference);
       } else {
         console.error("❌ Falló Envia");
