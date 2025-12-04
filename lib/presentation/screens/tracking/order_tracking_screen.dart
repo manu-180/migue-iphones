@@ -1,10 +1,13 @@
+// lib/presentation/screens/tracking/order_tracking_screen.dart
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
+// Importamos el servicio que creamos antes
+import 'package:migue_iphones/infrastructure/services/local_storage_service.dart';
 
 class OrderTrackingScreen extends StatefulWidget {
   static const name = 'order-tracking-screen';
@@ -19,8 +22,24 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   bool _isLoading = false;
   Map<String, dynamic>? _orderData;
   String? _errorMsg;
+  
+  // Variable para el historial
+  List<String> _recentOrders = [];
 
-  // Lógica para buscar la orden en Supabase
+  @override
+  void initState() {
+    super.initState();
+    _loadHistory(); // Cargar historial al entrar
+  }
+
+  // Cargar lista de shared_preferences
+  void _loadHistory() async {
+    final orders = await LocalStorageService.getOrders();
+    if (mounted) {
+      setState(() => _recentOrders = orders);
+    }
+  }
+
   Future<void> _searchOrder() async {
     final input = _searchController.text.trim();
     if (input.isEmpty) return;
@@ -30,9 +49,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     try {
       final supabase = Supabase.instance.client;
       
-      // Buscamos por tracking_number O por ID de orden (UUID)
-      // Nota: Para buscar por ID parcial, se requeriría una RPC o lógica extra. 
-      // Aquí buscamos coincidencia exacta por simplicidad y seguridad.
+      // Buscamos por tracking_number O por ID
       final response = await supabase
           .from('orders_pulpiprint')
           .select()
@@ -43,26 +60,26 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
         setState(() => _errorMsg = 'No encontramos ninguna orden con ese número.');
       } else {
         setState(() => _orderData = response);
+        // Guardamos esta búsqueda exitosa en el historial también
+        LocalStorageService.saveOrder(response['id']);
       }
     } catch (e) {
-      // Si el input no es UUID válido, Supabase tirará error al buscar en columna ID.
-      // Asumimos que no se encontró.
       setState(() => _errorMsg = 'Formato inválido o orden no encontrada.');
     } finally {
       setState(() => _isLoading = false);
     }
   }
 
-  // Lógica inteligente para abrir la web del correo
   void _launchCarrierTracking() async {
     if (_orderData == null) return;
     
     final tracking = _orderData!['tracking_number'];
-    final carrier = _orderData!['carrier_slug'] ?? 'correo-argentino';
+    final carrier = _orderData!['carrier_slug'] ?? 'correo-argentino'; // Default si es null
     
     if (tracking == null) return;
 
     Uri url;
+    // Detectar carrier para armar la URL correcta
     if (carrier.toString().toLowerCase().contains('andreani')) {
       url = Uri.parse('https://www.andreani.com/#!/informacionEnvio/$tracking');
     } else {
@@ -73,7 +90,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo abrir el mapa')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo abrir el mapa')));
     }
   }
 
@@ -137,7 +154,31 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
             const SizedBox(height: 30),
 
-            // 2. RESULTADOS DE LA ORDEN
+            // 2. HISTORIAL DE BÚSQUEDAS (Solo se ve si no hay un resultado activo)
+            if (_recentOrders.isNotEmpty && _orderData == null) ...[
+              const Text("Mis últimas compras", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              // Mapeamos la lista de IDs a Widgets
+              ..._recentOrders.map((id) => Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                elevation: 0,
+                color: Colors.grey.shade100,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                child: ListTile(
+                  leading: const Icon(Icons.local_mall_outlined, color: Colors.black87),
+                  title: Text("Orden #${id.length > 8 ? id.substring(0, 8).toUpperCase() : id}", 
+                              style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(id, style: const TextStyle(fontSize: 10, color: Colors.grey), overflow: TextOverflow.ellipsis),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                  onTap: () {
+                    _searchController.text = id;
+                    _searchOrder(); // Autocompletar y buscar
+                  },
+                ),
+              )),
+            ],
+
+            // 3. RESULTADOS DE LA ORDEN
             if (_orderData != null) ...[
               _buildStatusCard(context),
             ]
@@ -148,20 +189,16 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
   }
 
   Widget _buildStatusCard(BuildContext context) {
-    final status = _orderData!['status']; // pending, approved
+    final status = _orderData!['status'];
     final tracking = _orderData!['tracking_number'];
     final carrier = _orderData!['carrier_slug'] ?? 'Transportista';
-    final total = _orderData!['total_amount'];
     
-    // Determinamos el paso actual
     int currentStep = 0;
     if (status == 'approved') currentStep = 1;
     if (tracking != null) currentStep = 2;
-    // Si tuvieramos webhook de "entregado", sería paso 3
 
     return Column(
       children: [
-        // Tarjeta de Estado
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -191,7 +228,6 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
               ),
               const Divider(height: 30),
               
-              // LINEA DE TIEMPO SIMPLE
               _buildStep(0, "Orden Recibida", "Tu pedido ha sido registrado.", currentStep >= 0),
               _buildTimelineConnector(currentStep >= 1),
               _buildStep(1, "Pago Acreditado", "El pago se procesó correctamente.", currentStep >= 1),
@@ -216,7 +252,7 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
                     ),
                     icon: const FaIcon(FontAwesomeIcons.truckFast, size: 18),
-                    label: Text("Rastrear en $carrier"),
+                    label: Text("Seguir envío en $carrier"),
                   ),
                 ),
             ],

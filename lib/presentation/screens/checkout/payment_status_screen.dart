@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lottie/lottie.dart';
+import 'package:migue_iphones/infrastructure/services/local_storage_service.dart';
 import 'package:migue_iphones/presentation/widgets/shared/custom_app_bar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
@@ -70,6 +71,7 @@ class _SuccessPaymentScreenState extends ConsumerState<SuccessPaymentScreen> {
         _orderDetails = response;
         if (response['status'] == 'approved') {
           if (mounted) setState(() => _currentStatus = 'approved');
+          LocalStorageService.saveOrder(widget.paymentId!);
         }
       }
 
