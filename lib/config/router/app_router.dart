@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:migue_iphones/presentation/screens/checkout/payment_status_screen.dart';
+import 'package:migue_iphones/presentation/screens/tracking/order_tracking_screen.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 // Layouts y Screens
@@ -88,6 +89,11 @@ GoRouter appRouter(AppRouterRef ref) { // 1. CAMBIO: Usar Ref en lugar de AppRou
           status: 'pending',
           paymentId: state.uri.queryParameters['external_reference'],
         ),
+      ),
+      GoRoute(
+        path: '/tracking',
+        name: OrderTrackingScreen.name,
+        builder: (context, state) => const OrderTrackingScreen(),
       ),
     ],
     

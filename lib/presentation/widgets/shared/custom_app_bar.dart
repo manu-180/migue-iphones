@@ -73,6 +73,12 @@ class CustomAppBar extends ConsumerWidget implements PreferredSizeWidget {
                 const SizedBox(width: 20),
               ],
 
+              IconButton(
+  icon: const Icon(Icons.local_shipping_outlined),
+  tooltip: "Seguir mi envío",
+  onPressed: () => context.push('/tracking'),
+),
+
               // 4. CARRITO
               CompositedTransformTarget(
                 link: cartLayerLink,
