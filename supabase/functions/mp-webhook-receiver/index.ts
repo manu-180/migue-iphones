@@ -1,8 +1,10 @@
+// supabase/functions/mp-webhook-receiver/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.8';
 
 const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 
+// DATOS DE ORIGEN (Tus datos reales de Belgrano)
 const ORIGIN_DATA = {
   name: "Manuel Navarro", 
   company: "MNL Tecno",
@@ -17,8 +19,10 @@ const ORIGIN_DATA = {
   postalCode: "1428"          
 };
 
+// Caja estándar
 const PARCEL_DATA = { content: "Accesorios", amount: 1, type: "box", dimensions: { length: 15, width: 10, height: 5 }, weight: 0.5, weightUnit: "KG", lengthUnit: "CM" };
 
+// Helper para asegurar códigos de provincia (B o C)
 function getStateCode(stateName: string) {
   if (!stateName) return "B"; 
   const lower = stateName.toLowerCase();
@@ -47,6 +51,7 @@ serve(async (req) => {
 
     if (!paymentId) return new Response(JSON.stringify({ message: 'Ignored' }), { status: 200 });
 
+    // 1. Verificar Pago en MP
     const mpAccessToken = Deno.env.get('MP_ACCESS_TOKEN');
     const mpResponse = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
       headers: { 'Authorization': `Bearer ${mpAccessToken}` }
@@ -57,11 +62,15 @@ serve(async (req) => {
     const paymentDetails = await mpResponse.json();
     const newStatus = paymentDetails.status;
     const externalReference = paymentDetails.external_reference;
+    
+    // Recuperamos DNI si existe, sino fallback
+    const payerDni = paymentDetails.payer?.identification?.number || "20301234567"; 
 
-    console.log(`ℹ️ Pago: ${paymentId} | Estado: ${newStatus} | Ref: ${externalReference}`);
+    console.log(`ℹ️ Pago: ${paymentId} | Status: ${newStatus}`);
 
     if (!externalReference) return new Response(JSON.stringify({ message: 'No Ref' }), { status: 200 });
 
+    // 2. Actualizar Base de Datos
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
     const { data: orderData, error: updateError } = await supabase
@@ -73,48 +82,61 @@ serve(async (req) => {
 
     if (updateError) throw new Error("DB Error");
 
+    // 3. GENERAR ETIQUETA DE ENVÍO (Solo si aprobado, es envío y no tiene tracking)
     const needsShipping = newStatus === 'approved' && orderData.delivery_type === 'envio' && !orderData.tracking_number;
     
     if (needsShipping) {
-      console.log("🚚 Generando etiqueta DINÁMICA...");
+      console.log("🚚 Generando etiqueta REAL...");
       const enviaToken = Deno.env.get('ENVIA_ACCESS_TOKEN'); 
       
       const addr = orderData.shipping_address || {};
       const destName = orderData.payer_email ? orderData.payer_email.split('@')[0] : "Cliente";
       
-      // LEEMOS LO QUE ELIGIÓ EL USUARIO EN FLUTTER
-      // Si por alguna razón es nulo, usamos defaults
-      const selectedCarrier = orderData.carrier_slug || 'correo-argentino';
-      const selectedService = orderData.service_level || 'standard';
+      // --- CORRECCIÓN DE NOMBRES (SLUGS) ---
+      // Leemos lo que eligió el usuario o usamos default
+      let carrierSlug = orderData.carrier_slug || 'correoArgentino';
+      
+      // EL FIX MÁGICO: Corregimos el nombre para que coincida con la API
+      if (carrierSlug === 'correo-argentino') {
+          carrierSlug = 'correoArgentino'; // CamelCase, sin guión
+      } else if (carrierSlug === 'andreani') {
+          carrierSlug = 'andreani'; // Este suele estar bien así
+      }
 
-      console.log(`ℹ️ Carrier: ${selectedCarrier} | Service: ${selectedService}`);
+      console.log(`🎯 Usando Carrier: ${carrierSlug}`);
 
       const shippingBody = {
         origin: ORIGIN_DATA,
         destination: {
           name: destName,
           email: orderData.payer_email || "email@unknown.com",
-          phone: "5491100000000",
-          street: addr.street_name || "Calle Desconocida", 
+          phone: "5491155556666", // Teléfono genérico válido para evitar errores de formato
+          street: addr.street_name || addr.address || "Calle Desconocida", 
           number: addr.street_number || "0", 
-          district: addr.city || "Buenos Aires", // Intentamos usar el mismo
+          district: addr.city || "Buenos Aires", 
           city: addr.city || "Buenos Aires",     
           state: getStateCode(addr.state || "Buenos Aires"), 
           country: "AR",
-          postalCode: addr.zip_code || "1000"
+          postalCode: addr.zip_code || "1000",
+          identification_number: payerDni 
         },
         packages: [PARCEL_DATA],
-        // ✅ USAMOS VARIABLES DINÁMICAS
         shipment: { 
-            carrier: selectedCarrier, 
-            service: selectedService, 
+            carrier: carrierSlug, // Usamos el nombre corregido
+            service: "standard", 
             type: 1 
         },
-        settings: { currency: "ARS", labelFormat: "pdf", printFormat: "PDF", printSize: "STOCK_4X6" }
+        settings: { 
+            currency: "ARS", 
+            labelFormat: "pdf", 
+            printFormat: "PDF", 
+            printSize: "PAPER_8.5X11" // Hoja A4 para máxima compatibilidad
+        }
       };
 
       console.log("📤 Payload:", JSON.stringify(shippingBody));
 
+      // LLAMADA A API DE PRODUCCIÓN
       const enviaRes = await fetch('https://api.envia.com/ship/generate/', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${enviaToken}` },

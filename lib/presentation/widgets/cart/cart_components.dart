@@ -204,7 +204,7 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
     }
 
     // MAPEO FINAL (La clave del éxito)
-    String carrierSlug = 'correo-argentino';
+    String carrierSlug = 'correoArgentino';
     String serviceCode = 'standard'; // <--- CAMBIO CRÍTICO: Usamos 'standard' para todos
 
     if (selectedRate.carrierName.toLowerCase().contains('andreani')) {
@@ -212,7 +212,7 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
       serviceCode = 'standard';
     } else {
       // Correo Argentino
-      carrierSlug = 'correo-argentino';
+      carrierSlug = 'correoArgentino';
       serviceCode = 'standard'; // Antes decia 'clasico', Envia prefiere 'standard'
     }
 
