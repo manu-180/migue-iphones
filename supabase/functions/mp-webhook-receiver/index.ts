@@ -8,14 +8,14 @@ const ORIGIN_DATA = {
   name: "Manuel Navarro", 
   company: "MNL Tecno",
   email: "manunv97@gmail.com", 
-  phone: "5491134272488",     
+  phone: "5491134272488",      
   street: "Av. Cabildo",      
   number: "2040",             
-  district: "Belgrano",       
+  district: "Belgrano",        
   city: "Ciudad Autónoma de Buenos Aires",
-  state: "C",                 
+  state: "C", // Se corrige dinámicamente a "DF"
   country: "AR",
-  postalCode: "1428"          
+  postalCode: "1428"           
 };
 
 const PARCEL_DATA = { content: "Accesorios", amount: 1, type: "box", dimensions: { length: 15, width: 10, height: 5 }, weight: 0.5, weightUnit: "KG", lengthUnit: "CM" };
@@ -58,7 +58,6 @@ serve(async (req) => {
     const paymentDetails = await mpResponse.json();
     const newStatus = paymentDetails.status;
     const externalReference = paymentDetails.external_reference;
-    
     const payerDni = paymentDetails.payer?.identification?.number || "20301234567"; 
 
     console.log(`ℹ️ Pago: ${paymentId} | Status: ${newStatus}`);
@@ -66,7 +65,8 @@ serve(async (req) => {
     if (!externalReference) return new Response(JSON.stringify({ message: 'No Ref' }), { status: 200 });
 
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
-
+    
+    // 1. Actualizamos estado de pago (Esto siempre se ejecuta para mantener el pago al día)
     const { data: orderData, error: updateError } = await supabase
       .from('orders_pulpiprint')
       .update({ status: newStatus, mp_payment_id: Number(paymentId) })
@@ -76,79 +76,114 @@ serve(async (req) => {
 
     if (updateError) throw new Error("DB Error");
 
-    // GENERAR ETIQUETA
-    const needsShipping = newStatus === 'approved' && orderData.delivery_type === 'envio' && !orderData.tracking_number;
+    // 2. VERIFICAMOS SI NECESITA ENVÍO
+    const needsShipping = newStatus === 'approved' && orderData.delivery_type === 'envio';
     
     if (needsShipping) {
-      console.log("🚚 Generando etiqueta (CON DATOS DE ESPÍA)...");
-      const enviaToken = Deno.env.get('ENVIA_ACCESS_TOKEN'); 
       
-      const addr = orderData.shipping_address || {};
-      const destName = orderData.payer_email ? orderData.payer_email.split('@')[0] : "Cliente";
-      
-      // --- CORRECCIÓN DE NOMBRES EXACTOS ---
-      let carrierSlug = orderData.carrier_slug || 'correo-argentino';
-      let serviceCode = "standard_dom"; // Default seguro
+      // --- 🔒 BLOQUEO OPTIMISTA (El secreto Anti-Doble Cobro) ---
+      // Intentamos escribir "PROCESANDO..." en el tracking SOLO si está NULL.
+      // Si ya tiene datos (ej: otro webhook ganó la carrera), esta consulta devolverá null.
+      const { data: lockData, error: lockError } = await supabase
+        .from('orders_pulpiprint')
+        .update({ tracking_number: 'PROCESANDO...' }) 
+        .eq('id', externalReference)
+        .is('tracking_number', null) // <--- CONDICIÓN CRÍTICA
+        .select()
+        .maybeSingle();
 
-      if (carrierSlug === 'correo-argentino' || carrierSlug === 'correoArgentino') {
-          carrierSlug = 'correoArgentino'; 
-          serviceCode = 'standard_dom'; // EL CÓDIGO REAL DESCUBIERTO
-      } else if (carrierSlug === 'andreani') {
-          carrierSlug = 'andreani';
-          serviceCode = 'ground';       // EL CÓDIGO REAL DESCUBIERTO
+      if (!lockData) {
+        console.log("🛑 IDEMPOTENCIA: Esta orden ya tiene tracking o se está procesando. Cancelando ejecución duplicada.");
+        return new Response(JSON.stringify({ message: 'Already Processed' }), { status: 200, headers: corsHeaders });
       }
 
-      console.log(`🎯 Usando Carrier: ${carrierSlug} | Servicio: ${serviceCode}`);
+      console.log("🔒 Orden Bloqueada para procesar envío...");
 
-      const shippingBody = {
-        origin: ORIGIN_DATA,
-        destination: {
-          name: destName,
-          email: orderData.payer_email || "email@unknown.com",
-          phone: "5491155556666", 
-          street: addr.street_name || addr.address || "Calle Desconocida", 
-          number: addr.street_number || "0", 
-          district: addr.city || "Buenos Aires", 
-          city: addr.city || "Buenos Aires",     
-          state: getStateCode(addr.state || "Buenos Aires"), 
-          country: "AR",
-          postalCode: addr.zip_code || "1000",
-          identification_number: payerDni 
-        },
-        packages: [PARCEL_DATA],
-        shipment: { 
-            carrier: carrierSlug, 
-            service: serviceCode, // <-- LA CLAVE DEL ÉXITO
-            type: 1 
-        },
-        settings: { 
-            currency: "ARS", 
-            labelFormat: "pdf", 
-            printFormat: "PDF", 
-            printSize: "PAPER_8.5X11"
-        }
-      };
+      try {
+          // --- LOGICA DE ENVÍO ---
+          const enviaToken = Deno.env.get('ENVIA_ACCESS_TOKEN'); 
+          const addr = orderData.shipping_address || {};
+          const destName = orderData.payer_email ? orderData.payer_email.split('@')[0] : "Cliente";
+          
+          let carrierSlug = orderData.carrier_slug || 'correo-argentino';
+          let serviceCode = "standard_dom"; 
 
-      console.log("📤 Payload:", JSON.stringify(shippingBody));
+          if (carrierSlug === 'correo-argentino' || carrierSlug === 'correoArgentino') {
+              carrierSlug = 'correoArgentino'; 
+              serviceCode = 'standard_dom';
+          } else if (carrierSlug === 'andreani') {
+              carrierSlug = 'andreani';
+              serviceCode = 'ground';       
+          }
 
-      const enviaRes = await fetch('https://api.envia.com/ship/generate/', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${enviaToken}` },
-        body: JSON.stringify(shippingBody)
-      });
+          let destState = getStateCode(addr.state || "Buenos Aires");
+          let originState = ORIGIN_DATA.state; 
+          
+          if (carrierSlug === 'correoArgentino') {
+              if (originState === 'C') originState = "DF"; // Fix Origen
+              if (destState === 'B') destState = "BA";     // Fix Destino
+          }
 
-      const enviaRawText = await enviaRes.text();
-      console.log(`📥 Respuesta Envia: ${enviaRawText}`);
+          console.log(`🎯 Carrier: ${carrierSlug} | Origen: ${originState} | Destino: ${destState}`);
 
-      let enviaData;
-      try { enviaData = JSON.parse(enviaRawText); } catch(e) { }
+          const dynamicOrigin = { ...ORIGIN_DATA, state: originState };
 
-      if (enviaData && enviaData.meta === 'generate') {
-        const trackingNumber = enviaData.data[0].trackingNumber;
-        console.log(`🎉 TRACKING CREADO: ${trackingNumber}`);
-        await supabase.from('orders_pulpiprint').update({ tracking_number: trackingNumber }).eq('id', externalReference);
-      } else {
-        console.error("❌ Falló Envia");
+          const shippingBody = {
+            origin: dynamicOrigin,
+            destination: {
+              name: destName,
+              email: orderData.payer_email || "email@unknown.com",
+              phone: "5491155556666", 
+              street: addr.street_name || addr.address || "Calle Desconocida", 
+              number: addr.street_number || "0", 
+              district: addr.city || "Buenos Aires", 
+              city: addr.city || "Buenos Aires",      
+              state: destState, 
+              country: "AR",
+              postalCode: addr.zip_code || "1000",
+              identification_number: payerDni 
+            },
+            packages: [PARCEL_DATA],
+            shipment: { 
+                carrier: carrierSlug, 
+                service: serviceCode,
+                type: 1 
+            },
+            settings: { 
+                currency: "ARS", 
+                labelFormat: "pdf", 
+                printFormat: "PDF", 
+                printSize: "PAPER_8.5X11"
+            }
+          };
+
+          const enviaRes = await fetch('https://api.envia.com/ship/generate/', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${enviaToken}` },
+            body: JSON.stringify(shippingBody)
+          });
+
+          const enviaRawText = await enviaRes.text();
+          let enviaData;
+          try { enviaData = JSON.parse(enviaRawText); } catch(e) { }
+
+          if (enviaData && enviaData.meta === 'generate') {
+            const trackingNumber = enviaData.data[0].trackingNumber;
+            console.log(`🎉 TRACKING CREADO: ${trackingNumber}`);
+            
+            // ÉXITO: Reemplazamos "PROCESANDO..." por el tracking real
+            await supabase.from('orders_pulpiprint').update({ tracking_number: trackingNumber }).eq('id', externalReference);
+          
+          } else {
+            console.error("❌ Falló Envia:", enviaRawText);
+            throw new Error("API Envia Error"); // Lanzamos error para ir al catch
+          }
+
+      } catch (err) {
+          // ⚠️ ROLLBACK: Si algo falló (API caída, sin saldo, etc.), LIBERAMOS la orden
+          // Volvemos el tracking a NULL para poder reintentar luego.
+          console.error("⚠️ Error en proceso de envío, liberando orden...", err);
+          await supabase.from('orders_pulpiprint').update({ tracking_number: null }).eq('id', externalReference);
       }
     }
 

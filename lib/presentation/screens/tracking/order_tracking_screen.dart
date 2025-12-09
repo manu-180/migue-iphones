@@ -208,17 +208,22 @@ class _OrderCard extends StatelessWidget {
 
   const _OrderCard({required this.orderData});
 
-  void _launchCarrierLink(BuildContext context) async {
+ void _launchCarrierLink(BuildContext context) async {
     final tracking = orderData['tracking_number'];
     final carrier = orderData['carrier_slug'] ?? 'Correo';
 
     if (tracking == null) return;
 
     Uri url;
+    
+    // ESTRATEGIA DE LINKS:
     if (carrier.toString().toLowerCase().contains('andreani')) {
+      // Andreani es rápido, usamos su web oficial
       url = Uri.parse('https://www.andreani.com/#!/informacionEnvio/$tracking');
     } else {
-      url = Uri.parse('https://www.correoargentino.com.ar/formularios/e-commerce?id=$tracking');
+      // Para Correo Argentino (y otros), usamos Envia.com
+      // Envia muestra el estado "Generado" inmediatamente, evitando el pánico del usuario.
+      url = Uri.parse('https://envia.com/rastreo?label=$tracking&cntry_code=ar');
     }
 
     if (await canLaunchUrl(url)) {

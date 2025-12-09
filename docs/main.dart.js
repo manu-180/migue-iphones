@@ -102382,7 +102382,7 @@ l=m.i(n,"tracking_number")
 k=m.i(n,"carrier_slug")
 if(k==null)k="Correo"
 if(l==null){s=1
-break}o=B.c.p(J.di(k).toLowerCase(),"andreani")?A.c_("https://www.andreani.com/#!/informacionEnvio/"+A.k(l),0,null):A.c_("https://www.correoargentino.com.ar/formularios/e-commerce?id="+A.k(l),0,null)
+break}o=B.c.p(J.di(k).toLowerCase(),"andreani")?A.c_("https://www.andreani.com/#!/informacionEnvio/"+A.k(l),0,null):A.c_("https://envia.com/rastreo?label="+A.k(l)+"&cntry_code=ar",0,null)
 s=6
 return A.x(A.a7w(o),$async$we)
 case 6:s=c?3:5
