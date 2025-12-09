@@ -1,5 +1,3 @@
-// lib/presentation/widgets/shared/product_search_bar.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:migue_iphones/domain/models/product.dart';
 import 'package:migue_iphones/presentation/providers/products/products_provider.dart';
 import 'package:migue_iphones/presentation/providers/search_provider.dart';
+import 'package:migue_iphones/presentation/providers/global_search_provider.dart'; // Asegúrate de importar el provider nuevo
 
 class ProductSearchBar extends ConsumerStatefulWidget {
   const ProductSearchBar({super.key});
@@ -28,7 +27,10 @@ class _ProductSearchBarState extends ConsumerState<ProductSearchBar> {
       if (!_focusNode.hasFocus) {
         _removeOverlay();
       } else {
-        if (_controller.text.isNotEmpty) _showOverlay();
+        // Solo mostramos overlay si NO estamos en tracking
+        if (_controller.text.isNotEmpty && !_isTrackingRoute(context)) {
+          _showOverlay();
+        }
       }
     });
   }
@@ -41,21 +43,49 @@ class _ProductSearchBarState extends ConsumerState<ProductSearchBar> {
     super.dispose();
   }
 
+  // Helper para detectar si estamos en la pantalla de envíos
+  bool _isTrackingRoute(BuildContext context) {
+    // GoRouterState.of(context).uri da la ruta actual
+    // Verificamos si contiene '/tracking'
+    try {
+      final uri = GoRouterState.of(context).uri.toString();
+      return uri.contains('/tracking');
+    } catch (e) {
+      return false;
+    }
+  }
+
   void _onSearchChanged(String value) {
-    ref.read(searchQueryProvider.notifier).state = value;
-    if (value.isEmpty) {
+    if (_isTrackingRoute(context)) {
+      // MODO TRACKING: No usamos el search provider de productos ni overlay
       _removeOverlay();
     } else {
-      if (_overlayEntry == null) {
-        _showOverlay();
+      // MODO PRODUCTOS (Normal)
+      ref.read(searchQueryProvider.notifier).state = value;
+      if (value.isEmpty) {
+        _removeOverlay();
       } else {
-        _overlayEntry?.markNeedsBuild();
+        if (_overlayEntry == null) {
+          _showOverlay();
+        } else {
+          _overlayEntry?.markNeedsBuild();
+        }
       }
+    }
+  }
+
+  void _onSubmitted(String value) {
+    if (_isTrackingRoute(context)) {
+      // Disparamos la búsqueda en el provider de Tracking
+      ref.read(trackingSearchQueryProvider.notifier).state = value;
+      _focusNode.unfocus();
     }
   }
 
   void _showOverlay() {
     if (_overlayEntry != null) return;
+    if (_isTrackingRoute(context)) return; // Doble check de seguridad
+
     final renderBox = context.findRenderObject() as RenderBox?;
     if (renderBox == null) return;
     final size = renderBox.size;
@@ -94,6 +124,12 @@ class _ProductSearchBarState extends ConsumerState<ProductSearchBar> {
 
   @override
   Widget build(BuildContext context) {
+    // Determinamos el modo actual para cambiar la UI
+    final isTracking = _isTrackingRoute(context);
+    final hintText = isTracking 
+        ? 'Buscar Tracking, ID o Email...' 
+        : 'Buscar productos...';
+
     return CompositedTransformTarget(
       link: _layerLink,
       child: SizedBox(
@@ -102,9 +138,15 @@ class _ProductSearchBarState extends ConsumerState<ProductSearchBar> {
           controller: _controller,
           focusNode: _focusNode,
           onChanged: _onSearchChanged,
+          onSubmitted: _onSubmitted, // Importante para Tracking
+          textInputAction: isTracking ? TextInputAction.search : TextInputAction.done,
           decoration: InputDecoration(
-            hintText: 'Buscar productos...',
-            prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 20),
+            hintText: hintText,
+            prefixIcon: Icon(
+              isTracking ? Icons.local_shipping : Icons.search, 
+              color: Colors.grey, 
+              size: 20
+            ),
             suffixIcon: _controller.text.isNotEmpty
                 ? IconButton(
                     icon: const Icon(Icons.close, color: Colors.grey, size: 18),
@@ -126,6 +168,7 @@ class _ProductSearchBarState extends ConsumerState<ProductSearchBar> {
   }
 }
 
+// ... (La clase _SearchSuggestionsList queda igual, no necesita cambios)
 class _SearchSuggestionsList extends ConsumerWidget {
   final String query;
   final Function(Product) onProductSelected;

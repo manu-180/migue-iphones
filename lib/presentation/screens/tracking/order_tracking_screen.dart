@@ -1,241 +1,179 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:migue_iphones/infrastructure/services/local_storage_service.dart';
+import 'package:migue_iphones/presentation/layouts/main_layout.dart';
+import 'package:migue_iphones/presentation/providers/global_search_provider.dart';
 
-class OrderTrackingScreen extends StatefulWidget {
+class OrderTrackingScreen extends ConsumerStatefulWidget {
   static const name = 'order-tracking-screen';
   const OrderTrackingScreen({super.key});
 
   @override
-  State<OrderTrackingScreen> createState() => _OrderTrackingScreenState();
+  ConsumerState<OrderTrackingScreen> createState() => _OrderTrackingScreenState();
 }
 
-class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
-  final _searchController = TextEditingController();
+class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
   bool _isLoading = false;
-  Map<String, dynamic>? _orderData;
+  List<Map<String, dynamic>> _myOrders = [];
   String? _errorMsg;
-  List<String> _recentOrders = [];
+  
+  // Controlador para el scrollbar visual
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
-    print("🚀 INIT STATE: OrderTrackingScreen arrancó");
-    _loadAndAutoSearch();
+    _loadHistoryAndFetch();
   }
 
-  void _loadAndAutoSearch() async {
-    print("📂 STORAGE: Intentando leer historial...");
-    
-    // 1. Cargamos el historial local
-    final orders = await LocalStorageService.getOrders();
-    print("📂 STORAGE: Ordenes encontradas -> ${orders.length} items: $orders");
-    
-    if (mounted) {
-      setState(() => _recentOrders = orders);
-      
-      // 2. Si hay órdenes, buscamos la última automáticamente
-      if (orders.isNotEmpty) {
-        final lastOrder = orders.first;
-        print("🤖 AUTO-SEARCH: Iniciando búsqueda automática para: $lastOrder");
-        _searchController.text = lastOrder;
-        _searchOrder(lastOrder);
-      } else {
-        print("🤷 STORAGE: No hay órdenes recientes para auto-cargar.");
-      }
-    }
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
-  Future<void> _searchOrder(String input) async {
-    final cleanInput = input.trim();
-    print("🔍 SEARCH: Input recibido: '$cleanInput'");
+  void _loadHistoryAndFetch() async {
+    setState(() => _isLoading = true);
+    
+    // 1. Leemos lo que se guardó automáticamente al comprar
+    final localIds = await LocalStorageService.getOrders();
 
-    if (cleanInput.isEmpty) {
-      print("⚠️ SEARCH: Input vacío, cancelando.");
+    if (localIds.isEmpty) {
+      if (mounted) setState(() => _isLoading = false);
       return;
     }
-    
-    // Ocultar teclado y resetear estado visual
+
+    try {
+      final supabase = Supabase.instance.client;
+      // 2. Traemos TODAS las órdenes de un solo golpe
+      final List<dynamic> response = await supabase
+          .rpc('get_orders_batch', params: {'search_inputs': localIds});
+
+      if (mounted) {
+        setState(() {
+          _myOrders = List<Map<String, dynamic>>.from(response);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _searchSingleOrder(String input) async {
+    final cleanInput = input.trim();
+    if (cleanInput.isEmpty) return;
+
     FocusManager.instance.primaryFocus?.unfocus();
-    setState(() { _isLoading = true; _errorMsg = null; _orderData = null; });
+    setState(() { _isLoading = true; _errorMsg = null; });
 
     try {
       final supabase = Supabase.instance.client;
       
-      // --- INTELIGENCIA DE BÚSQUEDA ---
-      // Detectamos si es un UUID válido (formato de base de datos)
-      final uuidRegex = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$');
-      final isUuid = uuidRegex.hasMatch(cleanInput);
-
-      print("🧠 LOGIC: ¿Es UUID? -> $isUuid");
-
-      Map<String, dynamic>? response;
-
-      // ATENCIÓN: Imprimimos la query que vamos a hacer
-      if (isUuid) {
-        print("📡 DB QUERY: Buscando por ID (UUID)...");
-        final query = supabase
-            .from('orders_pulpiprint')
-            .select()
-            .eq('id', cleanInput)
-            .maybeSingle(); // Usamos query builder para imprimir si fuera necesario, pero ejecutamos directo
-        
-        response = await query;
-      } else {
-        print("📡 DB QUERY: Buscando por Tracking Number...");
-        response = await supabase
-            .from('orders_pulpiprint')
-            .select()
-            .eq('tracking_number', cleanInput)
-            .maybeSingle();
-      }
-
-      print("📨 DB RESPONSE: $response");
+      final response = await supabase
+          .rpc('get_order_for_tracking', params: {'search_input': cleanInput})
+          .maybeSingle();
 
       if (response == null) {
-        print("❌ RESULTADO: Null (No encontrado o bloqueado por RLS)");
-        setState(() => _errorMsg = 'No encontramos el pedido con ese número.');
+        setState(() => _errorMsg = 'No encontramos pedido con: $cleanInput');
       } else {
-        print("✅ RESULTADO: Datos encontrados -> ID: ${response['id']} | Status: ${response['status']}");
-        setState(() => _orderData = response);
-        // Guardamos esta búsqueda exitosa en el historial
-        print("💾 GUARDANDO: Actualizando LocalStorage con $cleanInput");
-        LocalStorageService.saveOrder(cleanInput);
+        final exists = _myOrders.any((o) => o['id'] == response['id']);
+        
+        if (!exists) {
+          setState(() {
+            _myOrders.insert(0, response);
+          });
+          // Guardamos para la próxima vez
+          await LocalStorageService.saveOrder(cleanInput);
+        } else {
+           setState(() => _errorMsg = 'Este pedido ya está en tu lista.');
+        }
       }
     } catch (e) {
-      print("💥 ERROR CRÍTICO: $e");
-      setState(() => _errorMsg = 'Ocurrió un error al buscar. Intenta nuevamente.');
+      setState(() => _errorMsg = 'Error de conexión: $e');
     } finally {
       setState(() => _isLoading = false);
-      print("🏁 FIN SEARCH: Loading false");
-    }
-  }
-
-  void _launchCarrierLink() async {
-    if (_orderData == null) return;
-    final tracking = _orderData!['tracking_number'];
-    final carrier = _orderData!['carrier_slug'] ?? 'correo-argentino';
-
-    print("🔗 LINK: Intentando abrir mapa. Carrier: $carrier | Tracking: $tracking");
-
-    if (tracking == null) return;
-
-    Uri url;
-    // Detectar carrier para armar la URL correcta
-    if (carrier.toString().toLowerCase().contains('andreani')) {
-      url = Uri.parse('https://www.andreani.com/#!/informacionEnvio/$tracking');
-    } else {
-      // Correo Argentino
-      url = Uri.parse('https://www.correoargentino.com.ar/formularios/e-commerce?id=$tracking');
-    }
-
-    print("🌐 URL FINAL: $url");
-
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
-      print("🚫 ERROR LINK: No se pudo lanzar la URL");
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo abrir el mapa')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey.shade50,
-      appBar: AppBar(
-        title: const Text('Estado de mi Pedido'),
-        centerTitle: true,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black), 
-          onPressed: () => context.go('/')
-        ),
-        titleTextStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 20),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+    ref.listen(trackingSearchQueryProvider, (previous, next) {
+      if (next.isNotEmpty) {
+        _searchSingleOrder(next);
+        ref.read(trackingSearchQueryProvider.notifier).state = ''; 
+      }
+    });
+
+    return MainLayout(
+      child: Container(
+        color: const Color(0xFFF5F7FA), // Fondo profesional gris azulado muy suave
+        width: double.infinity,
         child: Column(
           children: [
             
-            // 1. INDICADOR DE CARGA
-            if (_isLoading)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 40.0),
-                child: Center(child: CircularProgressIndicator(color: Colors.black)),
+            // 1. HEADER
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
+              color: Colors.white,
+              child: Column(
+                children: [
+                  const Text("Mis Pedidos", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 26, letterSpacing: -0.5)),
+                  const SizedBox(height: 8),
+                  Text("Historial de compras y seguimiento", style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
+                  
+                  if (_errorMsg != null)
+                    Container(
+                      margin: const EdgeInsets.only(top: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFFECACA))),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 20),
+                          const SizedBox(width: 10),
+                          Text(_errorMsg!, style: const TextStyle(color: Color(0xFFDC2626), fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                ],
               ),
-
-            // 2. TARJETA DE RESULTADO
-            if (!_isLoading && _orderData != null) 
-              _buildStatusCard(context),
-
-            // 3. MENSAJE DE ERROR
-            if (!_isLoading && _errorMsg != null)
-              Container(
-                padding: const EdgeInsets.all(15),
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(12)),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.red),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text(_errorMsg!, style: TextStyle(color: Colors.red.shade800, fontWeight: FontWeight.w500))),
-                  ],
-                ),
-              ),
-
-            const SizedBox(height: 30),
-            
-            // 4. HISTORIAL (Visible si no hay resultado activo)
-            if (_recentOrders.isNotEmpty && _orderData == null) ...[
-               Align(
-                 alignment: Alignment.centerLeft,
-                 child: Text("VISITADOS RECIENTEMENTE", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade600, fontSize: 12, letterSpacing: 1))
-               ),
-               const SizedBox(height: 10),
-               ..._recentOrders.map((o) => Card(
-                 margin: const EdgeInsets.only(bottom: 8),
-                 elevation: 0,
-                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: Colors.grey.shade300)),
-                 child: ListTile(
-                   title: Text(o, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                   leading: const Icon(Icons.history, color: Colors.black54),
-                   trailing: const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
-                   onTap: () {
-                     _searchController.text = o;
-                     _searchOrder(o);
-                   },
-                 ),
-               )),
-               const SizedBox(height: 20),
-            ],
-
-            // 5. INPUT DE BÚSQUEDA
-            const Divider(height: 40),
-            const Padding(
-              padding: EdgeInsets.only(bottom: 15),
-              child: Text("¿Buscas otro pedido?", style: TextStyle(color: Colors.grey)),
             ),
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Ingresa Tracking o ID de Orden',
-                filled: true,
-                fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide(color: Colors.grey.shade300)),
-                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: const BorderSide(color: Colors.black)),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.search, color: Colors.black),
-                  onPressed: () => _searchOrder(_searchController.text),
-                ),
-              ),
-              onSubmitted: (val) => _searchOrder(val),
+
+            const Divider(height: 1, color: Color(0xFFE5E7EB)),
+
+            // 2. LISTA CON SCROLLBAR VISIBLE
+            Expanded(
+              child: _isLoading 
+                ? const Center(child: CircularProgressIndicator(color: Colors.black))
+                : _myOrders.isEmpty 
+                    ? _buildEmptyState()
+                    : Scrollbar(
+                        // Configuración PRO del Scrollbar
+                        controller: _scrollController,
+                        thumbVisibility: true, // Siempre visible para que el usuario sepa que puede scrollear
+                        thickness: 8,
+                        radius: const Radius.circular(10),
+                        child: ListView.separated(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+                          itemCount: _myOrders.length,
+                          separatorBuilder: (context, index) => const SizedBox(height: 20),
+                          itemBuilder: (context, index) {
+                            return Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(maxWidth: 850),
+                                child: _OrderCard(orderData: _myOrders[index]),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
             ),
           ],
         ),
@@ -243,106 +181,185 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
     );
   }
 
-  Widget _buildStatusCard(BuildContext context) {
-    final status = _orderData!['status'];
-    final tracking = _orderData!['tracking_number'];
-    final carrier = _orderData!['carrier_slug'] ?? 'Correo';
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0,10))]),
+            child: Icon(Icons.inventory_2_outlined, size: 60, color: Colors.grey.shade400),
+          ),
+          const SizedBox(height: 24),
+          Text("Aún no tienes pedidos registrados", style: TextStyle(color: Colors.grey.shade800, fontWeight: FontWeight.bold, fontSize: 18)),
+          const SizedBox(height: 8),
+          Text("Tus compras aparecerán aquí automáticamente.", style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
+        ],
+      ),
+    );
+  }
+}
+
+// --- TARJETA DE ORDEN REDISEÑADA ---
+
+class _OrderCard extends StatelessWidget {
+  final Map<String, dynamic> orderData;
+
+  const _OrderCard({required this.orderData});
+
+  void _launchCarrierLink(BuildContext context) async {
+    final tracking = orderData['tracking_number'];
+    final carrier = orderData['carrier_slug'] ?? 'Correo';
+
+    if (tracking == null) return;
+
+    Uri url;
+    if (carrier.toString().toLowerCase().contains('andreani')) {
+      url = Uri.parse('https://www.andreani.com/#!/informacionEnvio/$tracking');
+    } else {
+      url = Uri.parse('https://www.correoargentino.com.ar/formularios/e-commerce?id=$tracking');
+    }
+
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      if(context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No se pudo abrir el mapa')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = orderData['status'];
+    final tracking = orderData['tracking_number'];
+    final carrier = orderData['carrier_slug'] ?? 'Logística';
+    final idShort = orderData['id'].toString().substring(0,8).toUpperCase();
     
-    // Lógica visual de pasos
+    final items = orderData['order_items'] as List<dynamic>?;
+    String title = "Compra MNL Tecno";
+    if (items != null && items.isNotEmpty) {
+      title = items[0]['title'] ?? 'Producto Desconocido';
+      if (items.length > 1) title += " (+${items.length - 1} más)";
+    }
+    
     int currentStep = 0;
     if (status == 'approved') currentStep = 1;
     if (tracking != null) currentStep = 2;
 
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(25),
+      padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 20, offset: const Offset(0, 5))],
+        borderRadius: BorderRadius.circular(16),
+        // Sombra más elegante y difusa
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 8)),
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2)),
+        ],
+        border: Border.all(color: Colors.grey.shade100),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("TU COMPRA", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.grey, letterSpacing: 1.2)),
+              // Icono del producto (Placeholder o imagen real si la tuvieras)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF009EE3).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20)
+                width: 50, height: 50,
+                decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+                child: const Icon(Icons.shopping_bag_outlined, color: Colors.black87),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Colors.black87)),
+                    const SizedBox(height: 4),
+                    Text("ID: #$idShort", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade500, letterSpacing: 0.5)),
+                  ],
                 ),
-                child: Text(
-                  "#${_orderData!['id'].toString().substring(0,8).toUpperCase()}",
-                  style: const TextStyle(color: Color(0xFF009EE3), fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-              )
+              ),
+              if (tracking != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.green.shade100)),
+                  child: Text("En camino", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                )
             ],
           ),
-          const SizedBox(height: 30),
           
-          _buildStep(0, "Orden Recibida", "Procesando", currentStep >= 0),
+          const Padding(padding: EdgeInsets.symmetric(vertical: 24.0), child: Divider(height: 1)),
+          
+          // Timeline
+          _buildStep(0, "Orden Recibida", "Procesamos tu pedido", currentStep >= 0),
           _buildConnector(currentStep >= 1),
-          _buildStep(1, "Pago Confirmado", "¡Todo listo!", currentStep >= 1),
+          _buildStep(1, "Pago Confirmado", "Pago exitoso", currentStep >= 1),
           _buildConnector(currentStep >= 2),
-          _buildStep(2, "En Camino", 
-            tracking != null ? "Tracking generado" : "Preparando envío", 
+          _buildStep(2, tracking != null ? "En Camino ($carrier)" : "Preparando Envío", 
+            tracking != null ? "Tracking: $tracking" : "Generando etiqueta...", 
             currentStep >= 2, isFinal: true
           ),
 
-          const SizedBox(height: 35),
-
-          if (tracking != null)
+          if (tracking != null) ...[
+            const SizedBox(height: 30),
             SizedBox(
               width: double.infinity,
+              height: 52,
               child: ElevatedButton.icon(
-                onPressed: _launchCarrierLink,
+                onPressed: () => _launchCarrierLink(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.black,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                icon: const FaIcon(FontAwesomeIcons.mapLocationDot, size: 18),
-                label: Text("VER UBICACIÓN ($carrier)".toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
+                icon: const FaIcon(FontAwesomeIcons.mapLocationDot, size: 16),
+                label: const Text("SEGUIR ENVÍO", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 0.5)),
               ),
             )
-          else if (status == 'approved')
-             Center(
-               child: Container(
-                 padding: const EdgeInsets.all(12),
-                 decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10)),
-                 child: Text("Estamos generando tu etiqueta...", style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.w600))
-               )
-             )
+          ]
         ],
       ),
     );
   }
 
-  Widget _buildStep(int step, String title, String sub, bool isActive, {bool isFinal = false}) {
+  Widget _buildStep(int step, String title, String subtitle, bool isActive, {bool isFinal = false}) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          width: 32, height: 32,
-          decoration: BoxDecoration(
-            color: isActive ? Colors.black : Colors.grey.shade100,
-            shape: BoxShape.circle,
-            border: Border.all(color: isActive ? Colors.black : Colors.grey.shade300)
-          ),
-          child: isActive ? const Icon(Icons.check, color: Colors.white, size: 18) : null,
-        ),
-        const SizedBox(width: 15),
         Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isActive ? Colors.black : Colors.grey)),
-            const SizedBox(height: 2),
-            Text(sub, style: TextStyle(fontSize: 13, color: isActive ? Colors.grey.shade600 : Colors.grey.shade400)),
+            Container(
+              width: 24, height: 24,
+              decoration: BoxDecoration(
+                color: isActive ? Colors.black : Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: isActive ? Colors.black : Colors.grey.shade300, width: 2)
+              ),
+              child: isActive ? const Icon(Icons.check, color: Colors.white, size: 14) : null,
+            ),
           ],
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: TextStyle(
+                fontSize: 15, 
+                fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+                color: isActive ? Colors.black : Colors.grey.shade400
+              )),
+              if (subtitle.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2.0),
+                  child: Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                ),
+            ],
+          ),
         )
       ],
     );
@@ -350,8 +367,8 @@ class _OrderTrackingScreenState extends State<OrderTrackingScreen> {
 
   Widget _buildConnector(bool isActive) {
     return Container(
-      margin: const EdgeInsets.only(left: 15, top: 4, bottom: 4),
-      height: 25,
+      margin: const EdgeInsets.only(left: 11, top: 4, bottom: 4), // Alineado al centro del círculo (24px / 2 = 12px centro, -1px ancho linea = 11px)
+      height: 30,
       width: 2,
       color: isActive ? Colors.black : Colors.grey.shade200,
     );

@@ -39,6 +39,10 @@ class _SuccessPaymentScreenState extends ConsumerState<SuccessPaymentScreen> {
     super.initState();
     _currentStatus = widget.status ?? 'unknown';
     _fetchOrderDataAndSubscribe();
+    if (widget.paymentId != null) { 
+    LocalStorageService.saveOrder(widget.paymentId!);
+    print("💾 ORDEN GUARDADA AUTOMÁTICAMENTE: ${widget.paymentId}");
+  }
   }
 
   @override
