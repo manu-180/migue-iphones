@@ -21,7 +21,6 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
   List<Map<String, dynamic>> _myOrders = [];
   String? _errorMsg;
   
-  // Controlador para el scrollbar visual
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -39,7 +38,6 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
   void _loadHistoryAndFetch() async {
     setState(() => _isLoading = true);
     
-    // 1. Leemos lo que se guardó automáticamente al comprar
     final localIds = await LocalStorageService.getOrders();
 
     if (localIds.isEmpty) {
@@ -49,7 +47,6 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
 
     try {
       final supabase = Supabase.instance.client;
-      // 2. Traemos TODAS las órdenes de un solo golpe
       final List<dynamic> response = await supabase
           .rpc('get_orders_batch', params: {'search_inputs': localIds});
 
@@ -74,27 +71,32 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
     try {
       final supabase = Supabase.instance.client;
       
-      final response = await supabase
-          .rpc('get_order_for_tracking', params: {'search_input': cleanInput})
-          .maybeSingle();
+      final List<dynamic> response = await supabase
+          .rpc('get_order_for_tracking', params: {'search_input': cleanInput});
 
-      if (response == null) {
-        setState(() => _errorMsg = 'No encontramos pedido con: $cleanInput');
+      if (response.isEmpty) {
+        setState(() => _errorMsg = 'No encontramos pedidos con: $cleanInput');
       } else {
-        final exists = _myOrders.any((o) => o['id'] == response['id']);
+        int addedCount = 0;
         
-        if (!exists) {
-          setState(() {
-            _myOrders.insert(0, response);
-          });
-          // Guardamos para la próxima vez
+        setState(() {
+          for (var item in response) {
+            final exists = _myOrders.any((o) => o['id'] == item['id']);
+            if (!exists) {
+              _myOrders.insert(0, item);
+              addedCount++;
+            }
+          }
+        });
+
+        if (addedCount > 0) {
           await LocalStorageService.saveOrder(cleanInput);
         } else {
-           setState(() => _errorMsg = 'Este pedido ya está en tu lista.');
+           setState(() => _errorMsg = 'Esos pedidos ya están en tu lista.');
         }
       }
     } catch (e) {
-      setState(() => _errorMsg = 'Error de conexión: $e');
+      setState(() => _errorMsg = 'Error al buscar: ${e.toString().split('\n').first}'); 
     } finally {
       setState(() => _isLoading = false);
     }
@@ -111,7 +113,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
 
     return MainLayout(
       child: Container(
-        color: const Color(0xFFF5F7FA), // Fondo profesional gris azulado muy suave
+        color: const Color(0xFFF5F7FA),
         width: double.infinity,
         child: Column(
           children: [
@@ -154,9 +156,8 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                 : _myOrders.isEmpty 
                     ? _buildEmptyState()
                     : Scrollbar(
-                        // Configuración PRO del Scrollbar
                         controller: _scrollController,
-                        thumbVisibility: true, // Siempre visible para que el usuario sepa que puede scrollear
+                        thumbVisibility: true,
                         thickness: 8,
                         radius: const Radius.circular(10),
                         child: ListView.separated(
@@ -215,14 +216,9 @@ class _OrderCard extends StatelessWidget {
     if (tracking == null) return;
 
     Uri url;
-    
-    // ESTRATEGIA DE LINKS:
     if (carrier.toString().toLowerCase().contains('andreani')) {
-      // Andreani es rápido, usamos su web oficial
       url = Uri.parse('https://www.andreani.com/#!/informacionEnvio/$tracking');
     } else {
-      // Para Correo Argentino (y otros), usamos Envia.com
-      // Envia muestra el estado "Generado" inmediatamente, evitando el pánico del usuario.
       url = Uri.parse('https://envia.com/rastreo?label=$tracking&cntry_code=ar');
     }
 
@@ -240,11 +236,20 @@ class _OrderCard extends StatelessWidget {
     final carrier = orderData['carrier_slug'] ?? 'Logística';
     final idShort = orderData['id'].toString().substring(0,8).toUpperCase();
     
+    // --- LÓGICA DE RECUPERACIÓN DE DATOS E IMAGEN ---
     final items = orderData['order_items'] as List<dynamic>?;
     String title = "Compra MNL Tecno";
+    String? imageUrl; // Variable para guardar la URL
+
     if (items != null && items.isNotEmpty) {
-      title = items[0]['title'] ?? 'Producto Desconocido';
+      final firstItem = items[0];
+      // Intentamos obtener el título
+      title = firstItem['title'] ?? firstItem['name'] ?? 'Producto';
       if (items.length > 1) title += " (+${items.length - 1} más)";
+      
+      // Intentamos obtener la imagen buscando las claves más comunes
+      // Se adapta a 'imageUrl' (modelo Dart) o 'image_url' (snake_case DB)
+      imageUrl = firstItem['imageUrl'] ?? firstItem['image_url'] ?? firstItem['image'];
     }
     
     int currentStep = 0;
@@ -256,7 +261,6 @@ class _OrderCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        // Sombra más elegante y difusa
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 24, offset: const Offset(0, 8)),
           BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2)),
@@ -269,13 +273,30 @@ class _OrderCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Icono del producto (Placeholder o imagen real si la tuvieras)
+              // --- IMAGEN DEL PRODUCTO (Reemplaza al Icono de Bolsa) ---
               Container(
-                width: 50, height: 50,
-                decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
-                child: const Icon(Icons.shopping_bag_outlined, color: Colors.black87),
+                width: 60, height: 60, // Un poco más grande para mejor visibilidad
+                decoration: BoxDecoration(
+                  color: Colors.white, 
+                  borderRadius: BorderRadius.circular(12), 
+                  border: Border.all(color: Colors.grey.shade200)
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  // Si existe URL, mostramos la imagen. Si no, fallback al icono.
+                  child: imageUrl != null && imageUrl.isNotEmpty
+                      ? Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(Icons.shopping_bag_outlined, color: Colors.grey);
+                          },
+                        )
+                      : const Icon(Icons.shopping_bag_outlined, color: Colors.black54),
+                ),
               ),
               const SizedBox(width: 16),
+              
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -372,7 +393,7 @@ class _OrderCard extends StatelessWidget {
 
   Widget _buildConnector(bool isActive) {
     return Container(
-      margin: const EdgeInsets.only(left: 11, top: 4, bottom: 4), // Alineado al centro del círculo (24px / 2 = 12px centro, -1px ancho linea = 11px)
+      margin: const EdgeInsets.only(left: 11, top: 4, bottom: 4),
       height: 30,
       width: 2,
       color: isActive ? Colors.black : Colors.grey.shade200,
