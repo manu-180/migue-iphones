@@ -32,7 +32,6 @@ class MainApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Escucha el proveedor del router para reconstruir cuando cambien las rutas
     final appRouter = ref.watch(appRouterProvider);
 
     return MaterialApp.router(
