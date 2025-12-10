@@ -243,9 +243,11 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
         'id': item.product.id,
         'title': item.product.name,
         'quantity': item.quantity,
-        'price': item.product.finalPrice, 
-        // ⚠️ CORRECCIÓN CRÍTICA: Eliminamos el acceso a selected_size dinámico que causaba el crash
-        'selected_size': '', 
+        'unit_price': item.product.finalPrice, // MP prefiere unit_price
+        'price': item.product.finalPrice,      // Para tu DB
+        'picture_url': item.product.imageUrl,  // <--- ¡AQUÍ ESTÁ LA CLAVE!
+        'image_url': item.product.imageUrl,    // Redundancia por seguridad
+        'description': item.product.name,      // MP pide description a veces
       }).toList();
       
       final supabaseClient = Supabase.instance.client;
@@ -253,12 +255,11 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
       final response = await supabaseClient.functions.invoke(
         'create-preference',
         body: {
-          'items': itemsPayload,
+          'items': itemsPayload, // Ahora lleva las fotos
           'payer_email': checkoutData['payer_email'],
           'shipping_cost': checkoutData['shipping_cost'],
           'shipping_address': checkoutData['shipping_address'],
           'is_transparent': useTransparent,
-          // AGREGAMOS ESTOS DOS:
           'carrier_slug': checkoutData['carrier_slug'], 
           'service_level': checkoutData['service_level'],
         },
