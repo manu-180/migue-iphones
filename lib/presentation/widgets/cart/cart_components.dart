@@ -47,6 +47,7 @@ class CartItemCard extends StatelessWidget {
         padding: const EdgeInsets.all(10.0),
         child: Row(
           children: [
+            // Imagen del producto
             ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Image.network(
@@ -58,6 +59,8 @@ class CartItemCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 15),
+            
+            // Detalles (Nombre y Precio)
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -100,16 +103,34 @@ class CartItemCard extends StatelessWidget {
                 ],
               ),
             ),
+            
+            // Controles de Cantidad (+ / -)
             Column(
               children: [
                 Row(
                   children: [
-                    IconButton(icon: const Icon(Icons.remove_circle_outline, size: 20), onPressed: onDecrement, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
-                    Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: Text('${item.quantity}', style: const TextStyle(fontWeight: FontWeight.bold))),
-                    IconButton(icon: const Icon(Icons.add_circle_outline, size: 20), onPressed: onIncrement, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+                    IconButton(
+                      icon: const Icon(Icons.remove_circle_outline, size: 20), 
+                      onPressed: onDecrement, 
+                      padding: EdgeInsets.zero, 
+                      constraints: const BoxConstraints()
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8), 
+                      child: Text('${item.quantity}', style: const TextStyle(fontWeight: FontWeight.bold))
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline, size: 20), 
+                      onPressed: onIncrement, 
+                      padding: EdgeInsets.zero, 
+                      constraints: const BoxConstraints()
+                    ),
                   ],
                 ),
-                TextButton(onPressed: onRemove, child: const Text('Quitar', style: TextStyle(color: Colors.red, fontSize: 11)))
+                TextButton(
+                  onPressed: onRemove, 
+                  child: const Text('Quitar', style: TextStyle(color: Colors.red, fontSize: 11))
+                )
               ],
             ),
           ],
@@ -145,7 +166,7 @@ class EmptyCartView extends StatelessWidget {
   }
 }
 
-// --- 3. RESUMEN DE ORDEN ---
+// --- 3. RESUMEN DE ORDEN (Con Lógica de Envío) ---
 class OrderSummaryCard extends ConsumerStatefulWidget {
   final double totalPrice; 
 
@@ -187,6 +208,8 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
       return;
     }
     setState(() => _shippingError = null);
+    
+    // Ocultar teclado
     FocusManager.instance.primaryFocus?.unfocus();
 
     // 2. Calculamos el peso total sumando los productos del carrito
@@ -194,7 +217,6 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
     double totalWeight = 0.0;
     
     for (var item in cartItems) {
-      // Usamos el campo 'weight' que agregamos al modelo Product
       totalWeight += (item.product.weight * item.quantity);
     }
     // Peso mínimo de seguridad (100g)
@@ -230,7 +252,7 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
     }
 
     String carrierSlug = 'correoArgentino';
-    String serviceCode = selectedRate.serviceName; // Guardamos nombre legible
+    String serviceCode = selectedRate.serviceName;
 
     if (selectedRate.carrierName.toLowerCase().contains('andreani')) {
       carrierSlug = 'andreani';
@@ -268,8 +290,8 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
         'quantity': item.quantity,
         'unit_price': item.product.finalPrice, 
         'price': item.product.finalPrice,      
-        'picture_url': item.product.imageUrl, // <--- FOTO PARA MP
-        'image_url': item.product.imageUrl,   // <--- FOTO PARA DB 
+        'picture_url': item.product.imageUrl, 
+        'image_url': item.product.imageUrl,   
         'description': item.product.name,      
       }).toList();
       
@@ -393,25 +415,60 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
             children: [
               const Text('Datos de Contacto', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
-              TextFormField(controller: _emailController, decoration: const InputDecoration(labelText: 'Email', isDense: true, border: OutlineInputBorder()), validator: (v) => (v == null || !v.contains('@')) ? 'Email inválido' : null),
+              
+              // Email
+              TextFormField(
+                controller: _emailController, 
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(labelText: 'Email', isDense: true, border: OutlineInputBorder()), 
+                validator: (v) => (v == null || !v.contains('@')) ? 'Email inválido' : null
+              ),
+              
               const SizedBox(height: 20),
               const Text("Dirección de Envío", style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
+              
               Row(
                 children: [
-                  Expanded(flex: 1, child: TextFormField(controller: _cpController, decoration: const InputDecoration(labelText: 'C.P.', isDense: true, border: OutlineInputBorder()), keyboardType: TextInputType.number, validator: (v) => v!.isEmpty ? 'Requerido' : null)),
+                  Expanded(flex: 1, child: TextFormField(
+                    controller: _cpController, 
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(labelText: 'C.P.', isDense: true, border: OutlineInputBorder()), 
+                    keyboardType: TextInputType.number, 
+                    validator: (v) => v!.isEmpty ? 'Requerido' : null
+                  )),
                   const SizedBox(width: 10),
                   Expanded(flex: 2, child: DropdownButtonFormField<String>(value: _selectedProvince, decoration: const InputDecoration(labelText: 'Provincia', isDense: true, border: OutlineInputBorder()), items: _provincias.map((String val) => DropdownMenuItem(value: val, child: Text(val, style: const TextStyle(fontSize: 12)))).toList(), onChanged: (val) => setState(() => _selectedProvince = val))),
                 ],
               ),
               const SizedBox(height: 10),
-              TextFormField(controller: _cityController, decoration: const InputDecoration(labelText: 'Localidad / Barrio', isDense: true, border: OutlineInputBorder(), hintText: "Ej: El Talar"), validator: (v) => v!.isEmpty ? 'Requerido' : null),
+              
+              TextFormField(
+                controller: _cityController, 
+                textInputAction: TextInputAction.next,
+                decoration: const InputDecoration(labelText: 'Localidad / Barrio', isDense: true, border: OutlineInputBorder(), hintText: "Ej: El Talar"), 
+                validator: (v) => v!.isEmpty ? 'Requerido' : null
+              ),
               const SizedBox(height: 10),
+              
               Row(
                 children: [
-                  Expanded(flex: 2, child: TextFormField(controller: _streetController, decoration: const InputDecoration(labelText: 'Calle', isDense: true, border: OutlineInputBorder()), validator: (v) => v!.isEmpty ? 'Requerido' : null)),
+                  Expanded(flex: 2, child: TextFormField(
+                    controller: _streetController, 
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(labelText: 'Calle', isDense: true, border: OutlineInputBorder()), 
+                    validator: (v) => v!.isEmpty ? 'Requerido' : null
+                  )),
                   const SizedBox(width: 10),
-                  Expanded(flex: 1, child: TextFormField(controller: _numberController, decoration: const InputDecoration(labelText: 'Altura', isDense: true, border: OutlineInputBorder()), keyboardType: TextInputType.number, validator: (v) => v!.isEmpty ? 'Requerido' : null)),
+                  Expanded(flex: 1, child: TextFormField(
+                    controller: _numberController, 
+                    // CAMBIO: Al dar Enter en "Altura" (el último), se calcula
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _calculateShipping(),
+                    decoration: const InputDecoration(labelText: 'Altura', isDense: true, border: OutlineInputBorder()), 
+                    keyboardType: TextInputType.number, 
+                    validator: (v) => v!.isEmpty ? 'Requerido' : null
+                  )),
                 ],
               ),
               const SizedBox(height: 10),

@@ -49,8 +49,9 @@ class CartNotifier extends _$CartNotifier {
   }
 
   // --- MÉTODO PRINCIPAL ---
-  // ... dentro de CartNotifier ...
-  Future<void> addProductToCart(Product product, {int quantity = 1}) async {
+  
+  // AQUI ESTA LA CORRECCION CLAVE: Agregamos {bool showNotification = true}
+  Future<void> addProductToCart(Product product, {int quantity = 1, bool showNotification = true}) async {
     final currentState = state.value ?? [];
     List<CartItem> updatedList = List.from(currentState);
 
@@ -66,8 +67,10 @@ class CartNotifier extends _$CartNotifier {
     state = AsyncData(updatedList);
     await _saveCartToPrefs(updatedList);
     
-    // --- ESTA LÍNEA ES LA QUE HACE APARECER EL CARTEL ---
-    ref.read(lastAddedItemProvider.notifier).state = LastAddedItem(product, quantity);
+    // Solo mostramos el popup si el flag es true (por defecto es true)
+    if (showNotification) {
+      ref.read(lastAddedItemProvider.notifier).state = LastAddedItem(product, quantity);
+    }
   }
 
   Future<void> removeProductFromCart(int productId) async {
@@ -121,7 +124,7 @@ double cartTotalPrice(CartTotalPriceRef ref) {
 // Control del Popup flotante
 final lastAddedItemProvider = StateProvider<LastAddedItem?>((ref) => null);
 
-// Control de la posición del ícono del carrito (para que el popup sepa dónde salir)
+// Control de la posición del ícono del carrito
 final cartIconLayerLinkProvider = Provider((ref) => LayerLink());
 
 // Control de apertura/cierre del Drawer Lateral
