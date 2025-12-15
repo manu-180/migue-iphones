@@ -2,8 +2,8 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:migue_iphones/domain/models/shipping_models.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-// --- Estado de la cotización ---
 final shippingRatesProvider = StateNotifierProvider<ShippingRatesNotifier, AsyncValue<List<ShippingRate>>>((ref) {
   return ShippingRatesNotifier();
 });
@@ -11,30 +11,51 @@ final shippingRatesProvider = StateNotifierProvider<ShippingRatesNotifier, Async
 class ShippingRatesNotifier extends StateNotifier<AsyncValue<List<ShippingRate>>> {
   ShippingRatesNotifier() : super(const AsyncData([]));
 
-  Future<void> calculateRates({required String zipCode}) async {
+  // ACTUALIZADO: Recibe todos los parámetros necesarios
+  Future<void> calculateRates({
+    required String zipCode, 
+    required String city, 
+    required String stateName,
+    required double totalWeight
+  }) async {
     state = const AsyncLoading();
     
-    // SIMULACIÓN DE API (Para que pruebes la UI)
-    await Future.delayed(const Duration(seconds: 1));
-    
-    final mockRates = [
-      ShippingRate(
-        carrierName: "Correo Argentino",
-        serviceName: "Clásico",
-        price: 0,
-        minDays: 3,
-        maxDays: 6,
-      ),
-      ShippingRate(
-        carrierName: "Andreani",
-        serviceName: "Prioritario",
-        price: 0,
-        minDays: 1,
-        maxDays: 3,
-      ),
-    ];
+    try {
+      final supabase = Supabase.instance.client;
+      
+      // Enviamos el paquete completo a la Edge Function
+      final response = await supabase.functions.invoke(
+        'calculate-shipping',
+        body: {
+          'zipCode': zipCode,
+          'city': city,
+          'state': stateName,
+          'weight': totalWeight
+        },
+      );
 
-    state = AsyncData(mockRates);
+      if (response.status != 200) {
+        throw Exception("Error del servidor: ${response.status}");
+      }
+
+      final List<dynamic> data = response.data;
+      
+      // Convertimos el JSON en objetos ShippingRate
+      final rates = data.map((r) => ShippingRate(
+        carrierName: r['carrier_name'],
+        serviceName: r['service_level'],
+        // price: (r['total_price'] as num).toDouble(),
+        price: 0,
+        minDays: r['min_days'] ?? 2,
+        maxDays: r['max_days'] ?? 5,
+      )).toList();
+
+      state = AsyncData(rates);
+
+    } catch (e, stack) {
+      // Si falla, guardamos el error para que la UI sepa
+      state = AsyncError(e, stack);
+    }
   }
   
   void clearRates() {
@@ -42,5 +63,4 @@ class ShippingRatesNotifier extends StateNotifier<AsyncValue<List<ShippingRate>>
   }
 }
 
-// Tarifa seleccionada por el usuario
 final selectedShippingRateProvider = StateProvider<ShippingRate?>((ref) => null);

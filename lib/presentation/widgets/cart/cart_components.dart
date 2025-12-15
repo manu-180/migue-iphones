@@ -157,7 +157,6 @@ class OrderSummaryCard extends ConsumerStatefulWidget {
 
 class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
   final _formKey = GlobalKey<FormState>();
-  
   final _emailController = TextEditingController();
   final _cpController = TextEditingController();
   final _streetController = TextEditingController();
@@ -168,9 +167,7 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
   String? _shippingError;
   bool _isProcessingPayment = false;
 
-  final List<String> _provincias = [
-    "Buenos Aires", "Capital Federal", "Catamarca", "Chaco", "Chubut", "Córdoba", "Corrientes", "Entre Ríos", "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan", "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán"
-  ];
+  final List<String> _provincias = ["Buenos Aires", "Capital Federal", "Catamarca", "Chaco", "Chubut", "Córdoba", "Corrientes", "Entre Ríos", "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan", "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán"];
 
   @override
   void dispose() {
@@ -182,19 +179,48 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
     super.dispose();
   }
 
-  void _calculateShipping() {
-    if (_cpController.text.isEmpty) {
-      setState(() => _shippingError = "Ingresa tu CP");
+  // --- FUNCIÓN DE CÁLCULO MEJORADA ---
+  void _calculateShipping() async {
+    // 1. Validamos que haya datos mínimos
+    if (_cpController.text.isEmpty || _cityController.text.isEmpty) {
+      setState(() => _shippingError = "Ingresa tu CP y Localidad para cotizar");
       return;
     }
     setState(() => _shippingError = null);
-    ref.read(shippingRatesProvider.notifier).calculateRates(zipCode: _cpController.text);
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    // 2. Calculamos el peso total sumando los productos del carrito
+    final cartItems = ref.read(cartNotifierProvider).value ?? [];
+    double totalWeight = 0.0;
+    
+    for (var item in cartItems) {
+      // Usamos el campo 'weight' que agregamos al modelo Product
+      totalWeight += (item.product.weight * item.quantity);
+    }
+    // Peso mínimo de seguridad (100g)
+    if (totalWeight < 0.1) totalWeight = 0.1;
+
+    // 3. Llamamos al Backend con TODOS los datos
+    await ref.read(shippingRatesProvider.notifier).calculateRates(
+      zipCode: _cpController.text,
+      city: _cityController.text,
+      stateName: _selectedProvince ?? "Buenos Aires",
+      totalWeight: totalWeight
+    );
+
+    // 4. Verificación de "Localidad Incorrecta"
+    final shippingState = ref.read(shippingRatesProvider);
+    if (!shippingState.isLoading && !shippingState.hasError) {
+       if (shippingState.value == null || shippingState.value!.isEmpty) {
+          if (mounted) {
+            setState(() => _shippingError = "No encontramos envíos. Verifica que el CP coincida con la Localidad.");
+          }
+       }
+    }
   }
 
-  // --- LÓGICA DE VALIDACIÓN ---
   Map<String, dynamic>? _submitFormValidation() {
     setState(() => _shippingError = null); 
-
     if (!_formKey.currentState!.validate()) return null;
     
     final selectedRate = ref.read(selectedShippingRateProvider);
@@ -203,17 +229,13 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
       return null;
     }
 
-    // MAPEO FINAL (La clave del éxito)
     String carrierSlug = 'correoArgentino';
-    String serviceCode = 'standard'; // <--- CAMBIO CRÍTICO: Usamos 'standard' para todos
+    String serviceCode = selectedRate.serviceName; // Guardamos nombre legible
 
     if (selectedRate.carrierName.toLowerCase().contains('andreani')) {
       carrierSlug = 'andreani';
-      serviceCode = 'standard';
     } else {
-      // Correo Argentino
       carrierSlug = 'correoArgentino';
-      serviceCode = 'standard'; // Antes decia 'clasico', Envia prefiere 'standard'
     }
 
     return { 
@@ -239,15 +261,16 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
 
     try {
       final cartItems = ref.read(cartNotifierProvider).value ?? [];
+      
       final itemsPayload = cartItems.map((item) => {
         'id': item.product.id,
         'title': item.product.name,
         'quantity': item.quantity,
-        'unit_price': item.product.finalPrice, // MP prefiere unit_price
-        'price': item.product.finalPrice,      // Para tu DB
-        'picture_url': item.product.imageUrl,  // <--- ¡AQUÍ ESTÁ LA CLAVE!
-        'image_url': item.product.imageUrl,    // Redundancia por seguridad
-        'description': item.product.name,      // MP pide description a veces
+        'unit_price': item.product.finalPrice, 
+        'price': item.product.finalPrice,      
+        'picture_url': item.product.imageUrl, // <--- FOTO PARA MP
+        'image_url': item.product.imageUrl,   // <--- FOTO PARA DB 
+        'description': item.product.name,      
       }).toList();
       
       final supabaseClient = Supabase.instance.client;
@@ -255,7 +278,7 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
       final response = await supabaseClient.functions.invoke(
         'create-preference',
         body: {
-          'items': itemsPayload, // Ahora lleva las fotos
+          'items': itemsPayload,
           'payer_email': checkoutData['payer_email'],
           'shipping_cost': checkoutData['shipping_cost'],
           'shipping_address': checkoutData['shipping_address'],
@@ -266,10 +289,7 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
       );
 
       final data = response.data;
-      
-      if (data is Map<String, dynamic> && data.containsKey('error')) {
-         throw Exception(data['error']);
-      }
+      if (data is Map<String, dynamic> && data.containsKey('error')) throw Exception(data['error']);
 
       if (useTransparent) {
         if (data != null && data['preference_id'] != null) {
@@ -295,6 +315,61 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
     }
   }
 
+  // --- WIDGET ACORDEÓN PARA ENVÍOS ---
+  Widget _buildShippingOptions(List<ShippingRate> rates, ShippingRate? selectedRate) {
+    final groupedRates = <String, List<ShippingRate>>{};
+    for (var rate in rates) {
+      if (!groupedRates.containsKey(rate.carrierName)) {
+        groupedRates[rate.carrierName] = [];
+      }
+      groupedRates[rate.carrierName]!.add(rate);
+    }
+
+    return Column(
+      children: groupedRates.entries.map((entry) {
+        final carrierName = entry.key;
+        final options = entry.value;
+        final minPrice = options.map((e) => e.price).reduce((a, b) => a < b ? a : b);
+
+        IconData carrierIcon = Icons.local_shipping_outlined;
+        if (carrierName.toLowerCase().contains('andreani')) carrierIcon = Icons.local_post_office; 
+        if (carrierName.toLowerCase().contains('correo')) carrierIcon = Icons.markunread_mailbox_outlined;
+
+        return Card(
+          elevation: 0,
+          margin: const EdgeInsets.only(bottom: 10),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: Colors.grey.shade300)),
+          child: Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              leading: Icon(carrierIcon, color: Colors.black87),
+              title: Text(carrierName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: Text("Desde ${currencyFormatter.format(minPrice)}", style: TextStyle(fontSize: 12, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+              textColor: Colors.black,
+              childrenPadding: const EdgeInsets.only(bottom: 10),
+              children: options.map((rate) {
+                return RadioListTile<ShippingRate>(
+                  value: rate,
+                  groupValue: selectedRate,
+                  title: Text(rate.serviceName, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                  subtitle: Text("${rate.minDays}-${rate.maxDays} días hábiles", style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  secondary: Text(currencyFormatter.format(rate.price), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                  activeColor: Colors.black,
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+                  onChanged: (val) {
+                    ref.read(selectedShippingRateProvider.notifier).state = val;
+                    setState(() => _shippingError = null);
+                  },
+                );
+              }).toList(),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final shippingState = ref.watch(shippingRatesProvider);
@@ -302,7 +377,6 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
     final cartItems = ref.watch(cartNotifierProvider).value ?? [];
     
     double totalOriginal = cartItems.fold(0, (sum, item) => sum + (item.product.price * item.quantity));
-    final savings = totalOriginal - widget.totalPrice;
     final shippingCost = selectedRate?.price ?? 0.0;
     final finalTotal = widget.totalPrice + shippingCost;
 
@@ -319,135 +393,61 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
             children: [
               const Text('Datos de Contacto', style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
-              TextFormField(
-                controller: _emailController,
-                decoration: const InputDecoration(labelText: 'Email', isDense: true, border: OutlineInputBorder()),
-                validator: (v) => (v == null || !v.contains('@')) ? 'Email inválido' : null,
-              ),
+              TextFormField(controller: _emailController, decoration: const InputDecoration(labelText: 'Email', isDense: true, border: OutlineInputBorder()), validator: (v) => (v == null || !v.contains('@')) ? 'Email inválido' : null),
               const SizedBox(height: 20),
-
               const Text("Dirección de Envío", style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
-              
               Row(
                 children: [
-                  Expanded(
-                    flex: 1,
-                    child: TextFormField(
-                      controller: _cpController,
-                      decoration: const InputDecoration(labelText: 'C.P.', isDense: true, border: OutlineInputBorder()),
-                      keyboardType: TextInputType.number,
-                      validator: (v) => v!.isEmpty ? 'Requerido' : null,
-                    ),
-                  ),
+                  Expanded(flex: 1, child: TextFormField(controller: _cpController, decoration: const InputDecoration(labelText: 'C.P.', isDense: true, border: OutlineInputBorder()), keyboardType: TextInputType.number, validator: (v) => v!.isEmpty ? 'Requerido' : null)),
                   const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: DropdownButtonFormField<String>(
-                      value: _selectedProvince,
-                      decoration: const InputDecoration(labelText: 'Provincia', isDense: true, border: OutlineInputBorder()),
-                      items: _provincias.map((String val) => DropdownMenuItem(value: val, child: Text(val, style: const TextStyle(fontSize: 12)))).toList(),
-                      onChanged: (val) => setState(() => _selectedProvince = val),
-                    ),
-                  ),
+                  Expanded(flex: 2, child: DropdownButtonFormField<String>(value: _selectedProvince, decoration: const InputDecoration(labelText: 'Provincia', isDense: true, border: OutlineInputBorder()), items: _provincias.map((String val) => DropdownMenuItem(value: val, child: Text(val, style: const TextStyle(fontSize: 12)))).toList(), onChanged: (val) => setState(() => _selectedProvince = val))),
                 ],
               ),
               const SizedBox(height: 10),
-
-              TextFormField(
-                controller: _cityController,
-                decoration: const InputDecoration(labelText: 'Localidad / Barrio', isDense: true, border: OutlineInputBorder(), hintText: "Ej: El Talar"),
-                validator: (v) => v!.isEmpty ? 'Requerido' : null,
-              ),
+              TextFormField(controller: _cityController, decoration: const InputDecoration(labelText: 'Localidad / Barrio', isDense: true, border: OutlineInputBorder(), hintText: "Ej: El Talar"), validator: (v) => v!.isEmpty ? 'Requerido' : null),
               const SizedBox(height: 10),
-
               Row(
                 children: [
-                  Expanded(
-                    flex: 2,
-                    child: TextFormField(
-                      controller: _streetController,
-                      decoration: const InputDecoration(labelText: 'Calle', isDense: true, border: OutlineInputBorder()),
-                      validator: (v) => v!.isEmpty ? 'Requerido' : null,
-                    ),
-                  ),
+                  Expanded(flex: 2, child: TextFormField(controller: _streetController, decoration: const InputDecoration(labelText: 'Calle', isDense: true, border: OutlineInputBorder()), validator: (v) => v!.isEmpty ? 'Requerido' : null)),
                   const SizedBox(width: 10),
-                  Expanded(
-                    flex: 1,
-                    child: TextFormField(
-                      controller: _numberController,
-                      decoration: const InputDecoration(labelText: 'Altura', isDense: true, border: OutlineInputBorder()),
-                      keyboardType: TextInputType.number,
-                      validator: (v) => v!.isEmpty ? 'Requerido' : null,
-                    ),
-                  ),
+                  Expanded(flex: 1, child: TextFormField(controller: _numberController, decoration: const InputDecoration(labelText: 'Altura', isDense: true, border: OutlineInputBorder()), keyboardType: TextInputType.number, validator: (v) => v!.isEmpty ? 'Requerido' : null)),
                 ],
               ),
-              
               const SizedBox(height: 10),
+              
+              // --- BOTÓN CON LOADING ---
               ElevatedButton(
                 onPressed: shippingState.isLoading ? null : _calculateShipping,
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.black, foregroundColor: Colors.white),
                 child: shippingState.isLoading 
-                  ? const SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        SizedBox(width: 15, height: 15, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+                        SizedBox(width: 10),
+                        Text("Calculando costo...")
+                      ],
+                    )
                   : const Text("Calcular Costo de Envío"),
               ),
 
-              if (_shippingError != null)
-                Padding(padding: const EdgeInsets.only(top: 5), child: Text(_shippingError!, style: const TextStyle(color: Colors.red, fontSize: 12))),
-
-              // Opciones de envío
-              if (shippingState.hasValue && shippingState.value!.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Container(
-                  decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
-                  child: Column(
-                    children: shippingState.value!.map((rate) {
-                      return RadioListTile<ShippingRate>(
-                        value: rate,
-                        groupValue: selectedRate,
-                        title: Text(rate.carrierName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                        subtitle: Text("Llega en ${rate.minDays}-${rate.maxDays} días hábiles", style: const TextStyle(fontSize: 12)),
-                        secondary: Text(currencyFormatter.format(rate.price), style: const TextStyle(fontWeight: FontWeight.bold)),
-                        activeColor: Colors.black,
-                        dense: true,
-                        onChanged: (val) {
-                          ref.read(selectedShippingRateProvider.notifier).state = val;
-                          setState(() => _shippingError = null);
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-
-              const Divider(height: 30),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Total Final:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text(currencyFormatter.format(finalTotal), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                ],
-              ),
-
-              const SizedBox(height: 20),
+              if (_shippingError != null) Padding(padding: const EdgeInsets.only(top: 5), child: Text(_shippingError!, style: const TextStyle(color: Colors.red, fontSize: 12))),
               
-              ElevatedButton.icon(
-                onPressed: _isProcessingPayment ? null : () => _processPayment(useTransparent: false),
-                icon: const FaIcon(FontAwesomeIcons.handshake, size: 18),
-                label: _isProcessingPayment
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Text('Pagar con Mercado Pago'),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF009EE3), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 15)),
-              ),
+              // --- LISTA AGRUPADA (ACORDEÓN) ---
+              if (shippingState.hasValue && shippingState.value!.isNotEmpty) ...[
+                const SizedBox(height: 15),
+                const Text("Opciones de Envío:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 10),
+                _buildShippingOptions(shippingState.value!, selectedRate),
+              ],
+              
+              const Divider(height: 30),
+              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text('Total Final:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)), Text(currencyFormatter.format(finalTotal), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold))]),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(onPressed: _isProcessingPayment ? null : () => _processPayment(useTransparent: false), icon: const FaIcon(FontAwesomeIcons.handshake, size: 18), label: _isProcessingPayment ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Pagar con Mercado Pago'), style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF009EE3), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 15))),
               const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: _isProcessingPayment ? null : () => _processPayment(useTransparent: true),
-                icon: const Icon(Icons.credit_card, size: 18),
-                label: const Text('Pagar con Tarjeta'),
-                style: OutlinedButton.styleFrom(foregroundColor: Colors.black, side: const BorderSide(color: Colors.black), padding: const EdgeInsets.symmetric(vertical: 15)),
-              ),
+              OutlinedButton.icon(onPressed: _isProcessingPayment ? null : () => _processPayment(useTransparent: true), icon: const Icon(Icons.credit_card, size: 18), label: const Text('Pagar con Tarjeta'), style: OutlinedButton.styleFrom(foregroundColor: Colors.black, side: const BorderSide(color: Colors.black), padding: const EdgeInsets.symmetric(vertical: 15))),
             ],
           ),
         ),

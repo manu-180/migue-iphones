@@ -79,16 +79,7 @@ class _SuccessPaymentScreenState extends ConsumerState<SuccessPaymentScreen> {
         }
       }
 
-      // Auto-fix status if frontend says approved but DB says pending
-      if (widget.status == 'approved' &&
-          _orderDetails != null &&
-          _orderDetails!['status'] != 'approved' &&
-          _isUuid) {
-        await supabase
-            .from('orders_pulpiprint')
-            .update({'status': 'approved'}).eq('id', widget.paymentId!);
-        if (mounted) setState(() => _currentStatus = 'approved');
-      }
+ 
 
       if (_currentStatus != 'approved' && _currentStatus != 'success') {
         _subscribeToOrderUpdates();

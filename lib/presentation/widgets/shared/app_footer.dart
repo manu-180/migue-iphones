@@ -1,9 +1,10 @@
-// lib/presentation/widgets/shared/app_footer.dart (CORREGIDO)
+// lib/presentation/widgets/shared/app_footer.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
-import 'package:migue_iphones/presentation/screens/cart/cart_screen.dart';
+import 'package:migue_iphones/presentation/providers/cart/cart_provider.dart';
 import 'package:url_launcher/url_launcher.dart'; 
 
 class AppFooter extends StatelessWidget {
@@ -26,9 +27,8 @@ class AppFooter extends StatelessWidget {
       builder: (context, constraints) {
         final isDesktop = constraints.maxWidth > 800;
         
-        // CORRECCIÓN: Usamos Material aquí para evitar el error "No Material widget found"
         return Material(
-          color: Colors.black, // El color de fondo va en el Material
+          color: Colors.black, 
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 40),
             width: double.infinity,
@@ -100,6 +100,8 @@ class _MobileFooterLayout extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start, 
       children: [
         _ContactInfoColumn(textStyle: textStyle, launchURL: launchURL),
+        const SizedBox(height: 30), // Espacio extra en móvil
+        _NavigationColumn(textStyle: textStyle),
       ],
     );
   }
@@ -154,12 +156,13 @@ class _ContactInfoColumn extends StatelessWidget {
   }
 }
 
-class _NavigationColumn extends StatelessWidget {
+// Convertido a ConsumerWidget para acceder al Drawer del carrito
+class _NavigationColumn extends ConsumerWidget {
   final TextStyle? textStyle;
   const _NavigationColumn({this.textStyle});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -171,18 +174,26 @@ class _NavigationColumn extends StatelessWidget {
               ),
         ),
         const SizedBox(height: 20),
+        
+        // 1. SEGUIR ENVÍO (Nuevo)
         _ClickableNavigationItem(
-          icon: FontAwesomeIcons.store, 
-          text: 'Catálogo', 
+          icon: FontAwesomeIcons.truckFast, // Camioncito
+          text: 'Seguir Envío', 
           textStyle: textStyle,
-          onTap: () => context.go('/'),
+          onTap: () => context.push('/tracking'),
         ),
+        
         const SizedBox(height: 10),
+        
+        // 2. MI CARRITO (Abre Drawer)
         _ClickableNavigationItem(
           icon: FontAwesomeIcons.shoppingCart, 
           text: 'Mi Carrito',
           textStyle: textStyle,
-          onTap: () => context.pushNamed(CartScreen.name),
+          onTap: () {
+            // Abre el Drawer lateral usando el provider global
+            ref.read(isCartDrawerOpenProvider.notifier).state = true;
+          },
         ),
       ],
     );
@@ -218,7 +229,11 @@ class _ClickableContactItem extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              FaIcon(icon, color: Colors.white70, size: 16),
+              // Usamos SizedBox para asegurar alineación fija de íconos
+              SizedBox(
+                width: 25, 
+                child: FaIcon(icon, color: Colors.white70, size: 18),
+              ),
               const SizedBox(width: 10),
               Text(text, style: textStyle),
             ],
@@ -254,7 +269,10 @@ class _ClickableNavigationItem extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              FaIcon(icon, color: Colors.white70, size: 16),
+              SizedBox(
+                width: 25, 
+                child: FaIcon(icon, color: Colors.white70, size: 18),
+              ),
               const SizedBox(width: 10),
               Text(text, style: textStyle),
             ],

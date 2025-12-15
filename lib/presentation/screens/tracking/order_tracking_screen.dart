@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:migue_iphones/infrastructure/services/local_storage_service.dart';
 import 'package:migue_iphones/presentation/layouts/main_layout.dart';
 import 'package:migue_iphones/presentation/providers/global_search_provider.dart';
@@ -17,7 +19,7 @@ class OrderTrackingScreen extends ConsumerStatefulWidget {
 }
 
 class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
-  bool _isLoading = false;
+  bool _isLoading = true; 
   List<Map<String, dynamic>> _myOrders = [];
   String? _errorMsg;
   
@@ -36,6 +38,9 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
   }
 
   void _loadHistoryAndFetch() async {
+    await initializeDateFormatting('es_AR', null);
+    
+    if (!mounted) return;
     setState(() => _isLoading = true);
     
     final localIds = await LocalStorageService.getOrders();
@@ -83,16 +88,22 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
           for (var item in response) {
             final exists = _myOrders.any((o) => o['id'] == item['id']);
             if (!exists) {
-              _myOrders.insert(0, item);
+              _myOrders.add(item); 
               addedCount++;
             }
           }
+          
+          _myOrders.sort((a, b) {
+             final dateA = DateTime.parse(a['created_at']);
+             final dateB = DateTime.parse(b['created_at']);
+             return dateB.compareTo(dateA); 
+          });
         });
 
         if (addedCount > 0) {
           await LocalStorageService.saveOrder(cleanInput);
         } else {
-           setState(() => _errorMsg = 'Esos pedidos ya están en tu lista.');
+           setState(() => _errorMsg = 'Esos pedidos ya están visibles.');
         }
       }
     } catch (e) {
@@ -117,8 +128,6 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
         width: double.infinity,
         child: Column(
           children: [
-            
-            // 1. HEADER
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
@@ -149,7 +158,6 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
 
             const Divider(height: 1, color: Color(0xFFE5E7EB)),
 
-            // 2. LISTA CON SCROLLBAR VISIBLE
             Expanded(
               child: _isLoading 
                 ? const Center(child: CircularProgressIndicator(color: Colors.black))
@@ -202,8 +210,6 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
   }
 }
 
-// --- TARJETA DE ORDEN REDISEÑADA ---
-
 class _OrderCard extends StatelessWidget {
   final Map<String, dynamic> orderData;
 
@@ -236,20 +242,27 @@ class _OrderCard extends StatelessWidget {
     final carrier = orderData['carrier_slug'] ?? 'Logística';
     final idShort = orderData['id'].toString().substring(0,8).toUpperCase();
     
-    // --- LÓGICA DE RECUPERACIÓN DE DATOS E IMAGEN ---
     final items = orderData['order_items'] as List<dynamic>?;
     String title = "Compra MNL Tecno";
-    String? imageUrl; // Variable para guardar la URL
+    String? imageUrl;
 
     if (items != null && items.isNotEmpty) {
       final firstItem = items[0];
-      // Intentamos obtener el título
       title = firstItem['title'] ?? firstItem['name'] ?? 'Producto';
       if (items.length > 1) title += " (+${items.length - 1} más)";
       
-      // Intentamos obtener la imagen buscando las claves más comunes
-      // Se adapta a 'imageUrl' (modelo Dart) o 'image_url' (snake_case DB)
-      imageUrl = firstItem['imageUrl'] ?? firstItem['image_url'] ?? firstItem['image'];
+      // FIX: Ahora buscamos 'picture_url' también
+      imageUrl = firstItem['picture_url'] ?? 
+                 firstItem['imageUrl'] ?? 
+                 firstItem['image_url'] ?? 
+                 firstItem['image'] ?? 
+                 firstItem['thumbnail'];
+    }
+
+    String dateString = '';
+    if (orderData['created_at'] != null) {
+      final createdAt = DateTime.parse(orderData['created_at']).toLocal();
+      dateString = DateFormat('dd/MM/yyyy HH:mm', 'es_AR').format(createdAt);
     }
     
     int currentStep = 0;
@@ -273,9 +286,8 @@ class _OrderCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- IMAGEN DEL PRODUCTO (Reemplaza al Icono de Bolsa) ---
               Container(
-                width: 60, height: 60, // Un poco más grande para mejor visibilidad
+                width: 60, height: 60, 
                 decoration: BoxDecoration(
                   color: Colors.white, 
                   borderRadius: BorderRadius.circular(12), 
@@ -283,14 +295,11 @@ class _OrderCard extends StatelessWidget {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  // Si existe URL, mostramos la imagen. Si no, fallback al icono.
                   child: imageUrl != null && imageUrl.isNotEmpty
                       ? Image.network(
                           imageUrl,
                           fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return const Icon(Icons.shopping_bag_outlined, color: Colors.grey);
-                          },
+                          errorBuilder: (context, error, stackTrace) => const Icon(Icons.shopping_bag_outlined, color: Colors.grey),
                         )
                       : const Icon(Icons.shopping_bag_outlined, color: Colors.black54),
                 ),
@@ -302,11 +311,28 @@ class _OrderCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: Colors.black87)),
+                    const SizedBox(height: 6),
+                    
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(4)),
+                      child: Text("ID: #$idShort", style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                    ),
+                    
                     const SizedBox(height: 4),
-                    Text("ID: #$idShort", style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade500, letterSpacing: 0.5)),
+                    
+                    if (dateString.isNotEmpty)
+                      Row(
+                        children: [
+                          Icon(Icons.access_time, size: 12, color: Colors.grey.shade500),
+                          const SizedBox(width: 4),
+                          Text(dateString, style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+                        ],
+                      ),
                   ],
                 ),
               ),
+              
               if (tracking != null)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -318,7 +344,6 @@ class _OrderCard extends StatelessWidget {
           
           const Padding(padding: EdgeInsets.symmetric(vertical: 24.0), child: Divider(height: 1)),
           
-          // Timeline
           _buildStep(0, "Orden Recibida", "Procesamos tu pedido", currentStep >= 0),
           _buildConnector(currentStep >= 1),
           _buildStep(1, "Pago Confirmado", "Pago exitoso", currentStep >= 1),

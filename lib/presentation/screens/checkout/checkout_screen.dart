@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:migue_iphones/presentation/widgets/payment/payment_brick_container.dart';
-
 class CheckoutScreen extends StatelessWidget {
   static const String name = 'checkout_screen';
   
