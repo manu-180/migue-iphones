@@ -123,44 +123,89 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
     super.dispose();
   }
 
+  // --- LÓGICA DE VALIDACIÓN MEJORADA ---
   Future<bool> _validateAndGeocode() async {
     final street = _streetController.text.trim();
     final number = _numberController.text.trim();
     final city = _cityController.text.trim();
     final state = _selectedProvince ?? "";
+    final userCp = _cpController.text.trim();
+
     if (street.isEmpty || city.isEmpty || number.isEmpty) {
       setState(() => _shippingError = "Completa la dirección para validar.");
       return false;
     }
+
     setState(() {
       _isValidatingAddress = true;
       _shippingError = null;
       _warningMessage = null;
       _mapCoordinates = null;
     });
+
     final query = "$street $number, $city, $state, Argentina";
+    
+    // Solicitamos 'addressdetails': '1' para obtener el CP real de esa ubicación
     final uri = Uri.https('nominatim.openstreetmap.org', '/search', {'q': query, 'format': 'json', 'limit': '1', 'addressdetails': '1'});
+    
     try {
       final response = await http.get(uri, headers: {'User-Agent': 'migue_iphones_app'});
+      
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        
         if (data is List && data.isEmpty) {
-          if (mounted) setState(() { _isValidatingAddress = false; _shippingError = "No encontramos esa dirección."; });
+          if (mounted) setState(() { _isValidatingAddress = false; _shippingError = "No encontramos esa dirección. Verifique calle y altura."; });
           return false;
         }
+
         if (data is List && data.isNotEmpty) {
           final item = data[0];
           final lat = double.parse(item['lat']);
           final lon = double.parse(item['lon']);
           final rank = int.tryParse(item['place_rank'].toString()) ?? 0;
-          if (mounted) setState(() { _mapCoordinates = LatLng(lat, lon); _isLocationApproximate = rank < 28; _isValidatingAddress = false; });
+          
+          // --- VALIDACIÓN DE CÓDIGO POSTAL ---
+          // Extraemos el CP que nos devuelve el mapa para esta dirección
+          final addressInfo = item['address'] ?? {};
+          final detectedPostcode = addressInfo['postcode']?.toString();
+
+          if (detectedPostcode != null && userCp.isNotEmpty) {
+            // Limpiamos strings para comparar (sacar espacios o letras si las hubiera)
+            final cleanUserCp = userCp.replaceAll(RegExp(r'[^0-9]'), '');
+            final cleanDetected = detectedPostcode.replaceAll(RegExp(r'[^0-9]'), '');
+
+            // Si hay una discrepancia clara (ej: puso 1000 y es 5000), mostramos error.
+            // Usamos contains porque a veces OSM devuelve "B1618" y el usuario puso "1618".
+            if (cleanUserCp.isNotEmpty && cleanDetected.isNotEmpty && 
+                !cleanDetected.contains(cleanUserCp) && !cleanUserCp.contains(cleanDetected)) {
+              
+              if (mounted) {
+                setState(() {
+                  _isValidatingAddress = false;
+                  _shippingError = "El C.P. ingresado ($userCp) no coincide con la ubicación detectada ($detectedPostcode). Verifique la localidad.";
+                });
+              }
+              return false; // Detenemos porque el CP está mal
+            }
+          }
+
+          if (mounted) {
+            setState(() { 
+              _mapCoordinates = LatLng(lat, lon); 
+              _isLocationApproximate = rank < 28; // < 28 suele ser nivel ciudad/barrio, no casa exacta
+              _isValidatingAddress = false; 
+            });
+          }
           return true;
         }
       }
     } catch (e) {
+      // Si falla la API, permitimos continuar pero avisamos (fail-safe)
       if (mounted) setState(() => _isValidatingAddress = false);
       return true; 
     }
+    
     if (mounted) setState(() => _isValidatingAddress = false);
     return true;
   }
@@ -171,11 +216,20 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
       setState(() => _shippingError = "Completa todos los campos de dirección.");
       return;
     }
+    
+    // Primero validamos la dirección y el CP
     final isAddressValid = await _validateAndGeocode();
-    if (!isAddressValid) return;
+    if (!isAddressValid) return; // Si falló la validación (ej: CP incorrecto), no calculamos envío
+
     final cartItems = ref.read(cartNotifierProvider).value ?? [];
     double totalWeight = cartItems.fold(0.1, (sum, item) => sum + (item.product.weight * item.quantity));
-    await ref.read(shippingRatesProvider.notifier).calculateRates(zipCode: _cpController.text, city: _cityController.text, stateName: _selectedProvince ?? "Buenos Aires", totalWeight: totalWeight);
+    
+    await ref.read(shippingRatesProvider.notifier).calculateRates(
+      zipCode: _cpController.text, 
+      city: _cityController.text, 
+      stateName: _selectedProvince ?? "Buenos Aires", 
+      totalWeight: totalWeight
+    );
   }
 
   Map<String, dynamic>? _submitFormValidation() {
@@ -321,7 +375,7 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
                     onPressed: (shippingState.isLoading || _isValidatingAddress) ? null : _calculateShipping,
                     style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     child: (shippingState.isLoading || _isValidatingAddress)
-                      ? const Row(mainAxisAlignment: MainAxisAlignment.center, children: [SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 12), Text("Calculando envío", style: TextStyle(fontWeight: FontWeight.bold))])
+                      ? const Row(mainAxisAlignment: MainAxisAlignment.center, children: [SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 12), Text("Validando dirección...", style: TextStyle(fontWeight: FontWeight.bold))])
                       : const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.calculate_outlined, size: 18), SizedBox(width: 8), Text("Calcular envío", style: TextStyle(fontWeight: FontWeight.bold))]),
                   ),
                 ),
