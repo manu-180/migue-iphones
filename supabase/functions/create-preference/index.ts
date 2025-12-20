@@ -37,7 +37,7 @@ serve(async (req) => {
 
     // 2. Insertar en DB (GUARDAMOS EL CARRIER ELEGIDO)
     const { data: newOrder, error: orderError } = await supabase
-      .from('orders_pulpiprint')
+      .from('orders')
       .insert({
         status: 'pending',
         total_amount: totalAmount,

@@ -37,17 +37,15 @@ class CustomAppBar extends ConsumerWidget implements PreferredSizeWidget {
           padding: EdgeInsets.symmetric(horizontal: isDesktop ? 40 : 20),
           child: Row(
             children: [
-              // 1. LOGO (IMAGEN)
+              // 1. LOGO
               InkWell(
                 onTap: () => context.go('/'),
                 borderRadius: BorderRadius.circular(8),
-                hoverColor: Colors.transparent,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-                  // REEMPLAZO: Usamos tu imagen en lugar del Icono+Texto
                   child: Image.asset(
                     'assets/images/migueicon.png',
-                    height: 50, // Ajusta este valor si quieres el logo más grande o chico
+                    height: 50, 
                     fit: BoxFit.contain,
                   ),
                 ),
@@ -67,36 +65,37 @@ class CustomAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
               const SizedBox(width: 20),
 
-              // 3. ICONOS Y FILTROS
-              if (isDesktop && showFilters) ...[
-                _buildSortDropdown(ref, context),
-                const SizedBox(width: 20),
-              ],
+              // 3. ACCIONES (Agrupadas para evitar desfase)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isDesktop && showFilters) ...[
+                    _buildSortDropdown(ref, context),
+                    const SizedBox(width: 15),
+                  ],
 
-              IconButton(
-  icon: const Icon(Icons.local_shipping_outlined),
-  tooltip: "Seguir mi envío",
-  onPressed: () => context.push('/tracking'),
-),
-
-              // 4. CARRITO
-              CompositedTransformTarget(
-                link: cartLayerLink,
-                child: Badge(
-                  label: Text('$cartItemCount'),
-                  isLabelVisible: cartItemCount > 0,
-                  backgroundColor: Colors.black,
-                  textColor: Colors.white,
-                  child: IconButton(
-                    icon: const Icon(Icons.shopping_cart_outlined, size: 28, color: Colors.black),
-                    hoverColor: Colors.transparent,
-                    splashColor: Colors.transparent,
-                    highlightColor: Colors.transparent,
-                    onPressed: () {
-                      ref.read(isCartDrawerOpenProvider.notifier).state = true;
-                    },
+                  IconButton(
+                    icon: const Icon(Icons.local_shipping_outlined, color: Colors.black87),
+                    tooltip: "Seguir mi envío",
+                    onPressed: () => context.push('/tracking'),
                   ),
-                ),
+
+                  const SizedBox(width: 8),
+
+                  // 4. CARRITO (Target de la animación)
+                  CompositedTransformTarget(
+                    link: cartLayerLink,
+                    child: Badge(
+                      label: Text('$cartItemCount'),
+                      isLabelVisible: cartItemCount > 0,
+                      backgroundColor: Colors.black,
+                      child: IconButton(
+                        icon: const Icon(Icons.shopping_cart_outlined, size: 28, color: Colors.black),
+                        onPressed: () => ref.read(isCartDrawerOpenProvider.notifier).state = true,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -107,21 +106,14 @@ class CustomAppBar extends ConsumerWidget implements PreferredSizeWidget {
 
   Widget _buildSortDropdown(WidgetRef ref, BuildContext context) {
     final sortOption = ref.watch(sortOptionProvider);
-
     return DropdownButtonHideUnderline(
       child: DropdownButton<SortOption>(
         value: sortOption,
         icon: const Icon(Icons.sort, size: 20, color: Colors.black),
         style: const TextStyle(color: Colors.black87, fontSize: 14),
-        dropdownColor: Colors.white,
-        focusColor: Colors.transparent,
-        autofocus: false,
         borderRadius: BorderRadius.circular(8),
-        elevation: 2,
-        onChanged: (SortOption? newValue) {
-          if (newValue != null) {
-            ref.read(sortOptionProvider.notifier).state = newValue;
-          }
+        onChanged: (newValue) {
+          if (newValue != null) ref.read(sortOptionProvider.notifier).state = newValue;
         },
         items: const [
           DropdownMenuItem(value: SortOption.nombreAZ, child: Text('Nombre (A-Z)')),
