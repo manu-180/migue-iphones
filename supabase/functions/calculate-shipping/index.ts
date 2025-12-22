@@ -150,7 +150,7 @@ serve(async (req) => {
             if (rate.total_price < existing.total_price) uniqueRatesMap.set(key, rate);
         }
     }
-    
+     
     const finalRates = Array.from(uniqueRatesMap.values());
     finalRates.sort((a: any, b: any) => a.total_price - b.total_price);
 

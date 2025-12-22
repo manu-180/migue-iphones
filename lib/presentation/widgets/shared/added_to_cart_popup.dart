@@ -48,118 +48,122 @@ class _AddedToCartPopupState extends ConsumerState<AddedToCartPopup> {
     final backgroundColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final titleColor = isDark ? Colors.white : const Color(0xFF1D1D1F);
 
-    Widget body = SizedBox(
-      width: 350,
+    // CORRECCIÓN: Usamos SafeArea y margin top para evitar que se pegue al AppBar
+    Widget body = SafeArea(
       child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(28), 
-          border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.4 : 0.15), 
-              blurRadius: 40, 
-              offset: const Offset(0, 15),
-              spreadRadius: -8
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 1. Header estilizado
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: SizedBox(
-                    width: 45, 
-                    height: 45,
-                    child: Lottie.asset(
-                      'assets/animations/carritoconfirmado.json',
-                      repeat: false,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.check_circle, color: Colors.green, size: 30),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Text(
-                    '¡Agregado con éxito!',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900, 
-                      color: titleColor,
-                      letterSpacing: -0.5
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            
-            // 2. Info Producto (Card Interna)
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.white.withOpacity(0.03) : const Color(0xFFF5F5F7),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: isDark ? Colors.white10 : Colors.transparent),
+        margin: const EdgeInsets.only(top: 20, left: 16, right: 16),
+        width: 350,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(28), 
+            border: Border.all(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.4 : 0.15), 
+                blurRadius: 40, 
+                offset: const Offset(0, 15),
+                spreadRadius: -8
               ),
-              child: Row(
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 1. Header estilizado
+              Row(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(
-                      widget.product.imageUrl, 
-                      width: 55, 
-                      height: 55, 
-                      fit: BoxFit.cover
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: SizedBox(
+                      width: 45, 
+                      height: 45,
+                      child: Lottie.asset(
+                        'assets/animations/carritoconfirmado.json',
+                        repeat: false,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.check_circle, color: Colors.green, size: 30),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.product.name, 
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800, 
-                            color: titleColor, 
-                            fontSize: 13,
-                            letterSpacing: -0.2
-                          ), 
-                          maxLines: 1, 
-                          overflow: TextOverflow.ellipsis
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${widget.quantity} unidad${widget.quantity > 1 ? 'es' : ''} • ${formatter.format(totalFinal)}', 
-                          style: TextStyle(
-                            color: titleColor.withOpacity(0.5), 
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600
-                          )
-                        ),
-                      ],
+                    child: Text(
+                      '¡Agregado con éxito!',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900, 
+                        color: titleColor,
+                        letterSpacing: -0.5
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 24),
-            
-            // 3. Botón de Acción EPIC
-            _EpicButton(
-              onPressed: () => _handleClose(openCart: true), 
-              color: theme.colorScheme.primary
-            ),
-          ],
+              const SizedBox(height: 20),
+              
+              // 2. Info Producto (Card Interna)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.03) : const Color(0xFFF5F5F7),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: isDark ? Colors.white10 : Colors.transparent),
+                ),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        widget.product.imageUrl, 
+                        width: 55, 
+                        height: 55, 
+                        fit: BoxFit.cover
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.product.name, 
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800, 
+                              color: titleColor, 
+                              fontSize: 13,
+                              letterSpacing: -0.2
+                            ), 
+                            maxLines: 1, 
+                            overflow: TextOverflow.ellipsis
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${widget.quantity} unidad${widget.quantity > 1 ? 'es' : ''} • ${formatter.format(totalFinal)}', 
+                            style: TextStyle(
+                              color: titleColor.withOpacity(0.5), 
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600
+                            )
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // 3. Botón de Acción EPIC
+              _EpicButton(
+                onPressed: () => _handleClose(openCart: true), 
+                color: theme.colorScheme.primary
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -173,9 +177,9 @@ class _AddedToCartPopupState extends ConsumerState<AddedToCartPopup> {
 class _EpicButton extends StatelessWidget {
   final VoidCallback onPressed;
   final Color color;
-  
+   
   const _EpicButton({required this.onPressed, required this.color});
-  
+   
   @override
   Widget build(BuildContext context) {
     return Container(

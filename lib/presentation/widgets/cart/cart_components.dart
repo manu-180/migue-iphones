@@ -101,12 +101,12 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
   final _streetController = TextEditingController();
   final _numberController = TextEditingController();
   final _cityController = TextEditingController(); 
-  
+   
   String? _selectedProvince = "Buenos Aires";
   String? _shippingError;
   String? _warningMessage;
   bool _isProcessingPayment = false;
-  
+   
   LatLng? _mapCoordinates;
   bool _isLocationApproximate = false;
   bool _isValidatingAddress = false;
@@ -332,6 +332,9 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
     final shippingState = ref.watch(shippingRatesProvider);
     final selectedRate = ref.watch(selectedShippingRateProvider);
     final finalTotal = widget.totalPrice + (selectedRate?.price ?? 0.0);
+    
+    // CORRECCIÓN: Obtenemos el tamaño del teclado para ajustar el padding
+    final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
 
     return Card(
       elevation: 4, shadowColor: Colors.black12, color: Colors.white,
@@ -339,7 +342,8 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
+          // CORRECCIÓN: Añadimos el bottomPadding para que el teclado no tape el contenido
+          padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomPadding),
           child: Form(
             key: _formKey,
             child: Column(

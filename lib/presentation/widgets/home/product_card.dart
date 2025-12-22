@@ -1,3 +1,5 @@
+// lib/presentation/widgets/product/product_card.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -57,15 +59,15 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                   ),
                 ),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
+                  // CORRECCIÓN: Usamos stretch para ocupar ancho completo
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // --- 1. IMAGEN (Ocupa espacio disponible superior) ---
-                    // Usamos Expanded para que la imagen empuje el contenido hacia abajo
-                    // pero mantenemos un AspectRatio mínimo para consistencia visual.
-                    AspectRatio(
-                      aspectRatio: 1.2, // Relación más cuadrada para ahorrar altura
+                    // --- 1. IMAGEN FLEXIBLE ---
+                    // Usamos Expanded en lugar de AspectRatio. 
+                    // La imagen tomará el espacio que sobre, asegurando que el contenido de abajo siempre entre.
+                    Expanded(
                       child: Stack(
+                        fit: StackFit.expand, // Asegura que la imagen llene el Expanded
                         children: [
                           PositionPoint(isHovering: _isHovering, imageUrl: widget.product.imageUrl),
                           if (hasDiscount)
@@ -77,17 +79,18 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                       ),
                     ),
 
-                    // --- 2. INFO ---
+                    // --- 2. INFO (Footer Fijo) ---
+                    // Reduje el padding ligeramente para dar más aire en pantallas chicas
                     Padding(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
                       child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                        mainAxisSize: MainAxisSize.min, // Ocupa lo mínimo necesario
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             widget.product.name,
                             style: const TextStyle(
-                                fontWeight: FontWeight.w800, fontSize: 15, color: Colors.black, letterSpacing: -0.5),
+                                fontWeight: FontWeight.w800, fontSize: 14, color: Colors.black, letterSpacing: -0.5),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -98,7 +101,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                             children: [
                               Text(
                                 formatter.format(hasDiscount ? widget.product.finalPrice : widget.product.price),
-                                style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.black, fontSize: 16),
+                                style: const TextStyle(fontWeight: FontWeight.w900, color: Colors.black, fontSize: 15),
                               ),
                               if (hasDiscount)
                                 Text(
@@ -106,7 +109,7 @@ class _ProductCardState extends ConsumerState<ProductCard> {
                                   style: TextStyle(
                                       decoration: TextDecoration.lineThrough,
                                       color: Colors.grey.shade400,
-                                      fontSize: 11),
+                                      fontSize: 10),
                                 ),
                             ],
                           ),
@@ -139,13 +142,12 @@ class PositionPoint extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 600),
       curve: Curves.easeOutQuart,
-      transform: Matrix4.identity()..scale(isHovering ? 1.05 : 1.0), // Zoom más sutil
+      transform: Matrix4.identity()..scale(isHovering ? 1.05 : 1.0), 
       transformAlignment: Alignment.center,
       child: Image.network(
         imageUrl,
         fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
+        // Eliminamos width/height infinitos aquí porque el padre (Stack->Expanded) ya restringe
         errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
       ),
     );
@@ -179,7 +181,7 @@ class _AddButton extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       width: double.infinity,
-      height: 40, // Altura reducida ligeramente
+      height: 38, // Reduje 2px más para asegurar fit
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
         gradient: isHovered
@@ -196,20 +198,18 @@ class _AddButton extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8.0),
             child: Center(
-              // FittedBox es CLAVE aquí: escala el contenido si el ancho es muy pequeño
-              // evitando el error de renderizado.
               child: FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.add_shopping_cart_rounded, size: 15, color: isHovered ? Colors.white : Colors.black87),
+                    Icon(Icons.add_shopping_cart_rounded, size: 14, color: isHovered ? Colors.white : Colors.black87),
                     const SizedBox(width: 6),
                     Text('Añadir al carrito',
                         style: TextStyle(
                             color: isHovered ? Colors.white : Colors.black87,
                             fontWeight: FontWeight.w700,
-                            fontSize: 12)),
+                            fontSize: 11)), // Bajé 1pt la fuente
                   ],
                 ),
               ),
