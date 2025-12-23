@@ -176,7 +176,6 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
             final cleanDetected = detectedPostcode.replaceAll(RegExp(r'[^0-9]'), '');
 
             // Si hay una discrepancia clara (ej: puso 1000 y es 5000), mostramos error.
-            // Usamos contains porque a veces OSM devuelve "B1618" y el usuario puso "1618".
             if (cleanUserCp.isNotEmpty && cleanDetected.isNotEmpty && 
                 !cleanDetected.contains(cleanUserCp) && !cleanUserCp.contains(cleanDetected)) {
               
@@ -333,7 +332,7 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
     final selectedRate = ref.watch(selectedShippingRateProvider);
     final finalTotal = widget.totalPrice + (selectedRate?.price ?? 0.0);
     
-    // CORRECCIÓN: Obtenemos el tamaño del teclado para ajustar el padding
+    // Altura del teclado para evitar overflow
     final bottomPadding = MediaQuery.of(context).viewInsets.bottom;
 
     return Card(
@@ -342,7 +341,6 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
         child: SingleChildScrollView(
-          // CORRECCIÓN: Añadimos el bottomPadding para que el teclado no tape el contenido
           padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + bottomPadding),
           child: Form(
             key: _formKey,
@@ -351,12 +349,26 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
               children: [
                 const Text('Resumen de Compra', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
                 const SizedBox(height: 20),
+                
                 _buildSectionTitle("Contacto"),
-                TextFormField(controller: _emailController, decoration: _inputDecoration("Correo electrónico", Icons.email_outlined), validator: (v) => (v == null || !v.contains('@')) ? 'Email inválido' : null),
+                TextFormField(
+                  controller: _emailController, 
+                  decoration: _inputDecoration("Correo electrónico", Icons.email_outlined), 
+                  validator: (v) => (v == null || !v.contains('@')) ? 'Email inválido' : null,
+                  textInputAction: TextInputAction.next, // Tecla siguiente
+                ),
+                
                 const SizedBox(height: 16),
                 _buildSectionTitle("Entrega"),
+                
                 Row(children: [
-                  Expanded(flex: 3, child: TextFormField(controller: _cpController, decoration: _inputDecoration("C.P.", null), keyboardType: TextInputType.number)),
+                  Expanded(flex: 3, child: TextFormField(
+                    controller: _cpController, 
+                    decoration: _inputDecoration("C.P.", null), 
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.go, // Botón IR/Enter
+                    onFieldSubmitted: (_) => _calculateShipping(), // Acción
+                  )),
                   const SizedBox(width: 12),
                   Expanded(flex: 5, child: DropdownButtonFormField<String>(
                     value: _selectedProvince, decoration: _inputDecoration("Provincia", null),
@@ -364,15 +376,35 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
                     onChanged: (val) => setState(() => _selectedProvince = val),
                   )),
                 ]),
+                
                 const SizedBox(height: 12),
-                TextFormField(controller: _cityController, decoration: _inputDecoration("Localidad", Icons.location_city_outlined)),
+                TextFormField(
+                  controller: _cityController, 
+                  decoration: _inputDecoration("Localidad", Icons.location_city_outlined),
+                  textInputAction: TextInputAction.go, // Botón IR/Enter
+                  onFieldSubmitted: (_) => _calculateShipping(), // Acción
+                ),
+                
                 const SizedBox(height: 12),
                 Row(children: [
-                  Expanded(flex: 3, child: TextFormField(controller: _streetController, decoration: _inputDecoration("Calle", null))),
+                  Expanded(flex: 3, child: TextFormField(
+                    controller: _streetController, 
+                    decoration: _inputDecoration("Calle", null),
+                    textInputAction: TextInputAction.go, // Botón IR/Enter
+                    onFieldSubmitted: (_) => _calculateShipping(), // Acción
+                  )),
                   const SizedBox(width: 12),
-                  Expanded(flex: 1, child: TextFormField(controller: _numberController, decoration: _inputDecoration("Altura", null), keyboardType: TextInputType.number)),
+                  Expanded(flex: 1, child: TextFormField(
+                    controller: _numberController, 
+                    decoration: _inputDecoration("Altura", null), 
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.go, // Botón IR/Enter
+                    onFieldSubmitted: (_) => _calculateShipping(), // Acción
+                  )),
                 ]),
+
                 const SizedBox(height: 16),
+                
                 SizedBox(
                   height: 50,
                   child: FilledButton.tonal(
@@ -383,20 +415,26 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
                       : const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.calculate_outlined, size: 18), SizedBox(width: 8), Text("Calcular envío", style: TextStyle(fontWeight: FontWeight.bold))]),
                   ),
                 ),
+
                 if (_shippingError != null) _buildErrorMessage(_shippingError!),
+                
                 if (_mapCoordinates != null) ...[
                   const SizedBox(height: 16),
                   AddressMapPreview(lat: _mapCoordinates!.latitude, lng: _mapCoordinates!.longitude, isApproximate: _isLocationApproximate, onPositionChanged: (c) => _mapCoordinates = c),
                 ],
+                
                 if (shippingState.hasValue && shippingState.value!.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   _buildShippingOptions(shippingState.value!, selectedRate),
                 ],
+                
                 const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider()),
+                
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   const Text('Total a pagar', style: TextStyle(fontSize: 16, color: Colors.black54)),
                   Text(currencyFormatter.format(finalTotal), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.black)),
                 ]),
+                
                 const SizedBox(height: 24),
                 _buildMercadoPagoButton(),
               ],
