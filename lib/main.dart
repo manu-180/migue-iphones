@@ -37,7 +37,7 @@ class MainApp extends ConsumerWidget {
     return MaterialApp.router(
       routerConfig: appRouter,
       debugShowCheckedModeBanner: false,
-      title: 'Migue IPhones',
+      title: 'MNL Tecno',
       theme: _appTheme(),
     );
   }

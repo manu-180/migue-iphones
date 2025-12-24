@@ -41,7 +41,7 @@ serve(async (req) => {
     const paymentData = {
       transaction_amount: Number(transaction_amount),
       token: token,
-      description: description || 'Compra en Migue iPhones',
+      description: description || 'Compra en MNL Tecno',
       installments: Number(installments),
       payment_method_id: payment_method_id,
       issuer_id: issuer_id,
@@ -116,7 +116,7 @@ async function generateEnviaLabel(order: any) {
   const shippingBody = {
     origin: ORIGIN_DATA,
     destination: {
-      name: "Cliente Migue iPhones", // Podrías guardar el nombre en la orden también
+      name: "Cliente MNL Tecno", // Podrías guardar el nombre en la orden también
       email: order.payer_email,
       phone: "1100000000", // Idealmente pedir teléfono en checkout
       street: order.shipping_address.street_name || order.shipping_address.street,

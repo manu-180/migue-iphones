@@ -108775,7 +108775,7 @@ $S:674}
 A.XY.prototype={$iIv:1}
 A.Wl.prototype={
 hw(a,b){var s=null,r=b.f_($.bc5(),t.aq),q=A.b0y(B.at,s,B.hF,B.Re,B.hF,B.Rz)
-return new A.zx(r,"Migue IPhones",A.B8(B.Nn,s,new A.u_(s,s,s,s,0,s,new A.cU(A.b6(12),B.r)),q,B.f,B.ajF.aAo(u.Z),!0),!1,s)}}
+return new A.zx(r,"MNL Tecno",A.B8(B.Nn,s,new A.u_(s,s,s,s,0,s,new A.cU(A.b6(12),B.r)),q,B.f,B.ajF.aAo(u.Z),!0),!1,s)}}
 A.zr.prototype={
 a7(){return new A.a5e()}}
 A.a5e.prototype={
