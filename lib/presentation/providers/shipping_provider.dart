@@ -44,8 +44,7 @@ class ShippingRatesNotifier extends StateNotifier<AsyncValue<List<ShippingRate>>
       final rates = data.map((r) => ShippingRate(
         carrierName: r['carrier_name'],
         serviceName: r['service_level'],
-        // price: (r['total_price'] as num).toDouble(),
-        price: 0,
+        price: (r['total_price'] as num).toDouble(),
         minDays: r['min_days'] ?? 2,
         maxDays: r['max_days'] ?? 5,
       )).toList();

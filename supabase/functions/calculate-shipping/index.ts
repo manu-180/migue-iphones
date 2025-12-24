@@ -3,17 +3,18 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 
+// --- ACTUALIZADO: ORIGEN PULPIPRINT (Ricardo Rojas) ---
 const ORIGIN_DATA = {
-  name: "MNL Tecno", 
-  company: "MNL Tecno",
-  phone: "5491134272488",      
-  street: "Av. Cabildo",      
-  number: "2040",             
-  district: "Belgrano",        
-  city: "Ciudad Autónoma de Buenos Aires",
-  state: "DF", 
+  name: "PulpiPrint", 
+  company: "PulpiPrint 3D",
+  phone: "5491131390974", // 11 3139-0974 formateado para API
+  street: "Fray Castaneda", // "Castaneda" evita errores de encoding en etiquetas
+  number: "2488",             
+  district: "Ricardo Rojas",        
+  city: "Tigre", // Tigre es el partido/ciudad principal para la API
+  state: "BA", // Provincia de Buenos Aires
   country: "AR",
-  postalCode: "1428"           
+  postalCode: "1610" // Código Postal de Ricardo Rojas
 };
 
 const DEFAULT_PARCEL = { content: "Productos Varios", amount: 1, type: "box", dimensions: { length: 15, width: 10, height: 5 }, weight: 0.5, weightUnit: "KG", lengthUnit: "CM" };
@@ -44,12 +45,11 @@ serve(async (req) => {
     const carriers = ['andreani', 'correoArgentino'];
     let rawRates: any[] = [];
 
-    // --- TRADUCTOR MAESTRO (ORDEN CORREGIDO) ---
+    // --- TRADUCTOR MAESTRO ---
     const formatServiceName = (rawName: string) => {
         const lower = rawName.toLowerCase();
         
         // 1. PRIORIDAD ABSOLUTA: SUCURSAL
-        // Detecta "sucursal", "branch", o códigos técnicos como "standard_suc"
         if (lower.includes('sucursal') || lower.includes('branch') || lower.includes('_suc')) {
              return 'Retiro en Sucursal';
         }
@@ -60,7 +60,6 @@ serve(async (req) => {
         }
 
         // 3. RESTO: ESTÁNDAR A DOMICILIO
-        // Aquí caen "standard", "ground", "clasico", "paq.ar" (si no es sucursal)
         return 'Estándar a Domicilio';
     };
 
@@ -89,7 +88,7 @@ serve(async (req) => {
     };
 
     const dynamicPackage = { 
-        content: "Accesorios Celular", 
+        content: "Accesorios 3D", 
         amount: 1, type: "box", dimensions: { length: 15, width: 10, height: 5 }, 
         weight: finalWeight, weightUnit: "KG", lengthUnit: "CM" 
     };
@@ -114,11 +113,8 @@ serve(async (req) => {
             // MANEJO DE ERROR DE DIRECCIÓN
             if (data.meta === 'error') {
                 const errorMsg = data.error?.message?.toLowerCase() || "";
-                // Si el error menciona "postal code" o "city", es un error de validación
                 if (errorMsg.includes("postal") || errorMsg.includes("city") || errorMsg.includes("service")) {
                     console.warn(`⚠️ Error validación dirección (${carrier}):`, errorMsg);
-                    // No lanzamos error global todavía, probamos el otro carrier.
-                    // Pero si ambos fallan, el array 'rates' quedará vacío.
                 }
                 return;
             }
@@ -154,9 +150,8 @@ serve(async (req) => {
     const finalRates = Array.from(uniqueRatesMap.values());
     finalRates.sort((a: any, b: any) => a.total_price - b.total_price);
 
-    // Si no encontramos nada, puede ser error de dirección
+    // Si no encontramos nada, puede ser error de dirección o servicio no disponible
     if (finalRates.length === 0) {
-        // Devolvemos lista vacía, el Frontend mostrará el mensaje de error personalizado
         return new Response(JSON.stringify([]), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 

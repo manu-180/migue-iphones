@@ -94,27 +94,42 @@ class OrderSummaryCard extends ConsumerStatefulWidget {
   ConsumerState<OrderSummaryCard> createState() => _OrderSummaryCardState();
 }
 
-class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
+// --- CAMBIO: Agregado SingleTickerProviderStateMixin para la animación ---
+class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _cpController = TextEditingController();
   final _streetController = TextEditingController();
   final _numberController = TextEditingController();
   final _cityController = TextEditingController(); 
-   
+    
   String? _selectedProvince = "Buenos Aires";
   String? _shippingError;
   String? _warningMessage;
   bool _isProcessingPayment = false;
-   
+    
   LatLng? _mapCoordinates;
   bool _isLocationApproximate = false;
   bool _isValidatingAddress = false;
 
+  // --- CAMBIO: Controlador de animación ---
+  late AnimationController _btnController;
+
   final List<String> _provincias = ["Buenos Aires", "Capital Federal", "Catamarca", "Chaco", "Chubut", "Córdoba", "Corrientes", "Entre Ríos", "Formosa", "Jujuy", "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan", "San Luis", "Santa Cruz", "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán"];
+
+  // --- CAMBIO: initState para inicializar animación ---
+  @override
+  void initState() {
+    super.initState();
+    _btnController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2), // Duración del ciclo de carga
+    );
+  }
 
   @override
   void dispose() {
+    _btnController.dispose(); // --- CAMBIO: Dispose del controller ---
     _emailController.dispose();
     _cpController.dispose();
     _streetController.dispose();
@@ -166,16 +181,13 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
           final rank = int.tryParse(item['place_rank'].toString()) ?? 0;
           
           // --- VALIDACIÓN DE CÓDIGO POSTAL ---
-          // Extraemos el CP que nos devuelve el mapa para esta dirección
           final addressInfo = item['address'] ?? {};
           final detectedPostcode = addressInfo['postcode']?.toString();
 
           if (detectedPostcode != null && userCp.isNotEmpty) {
-            // Limpiamos strings para comparar (sacar espacios o letras si las hubiera)
             final cleanUserCp = userCp.replaceAll(RegExp(r'[^0-9]'), '');
             final cleanDetected = detectedPostcode.replaceAll(RegExp(r'[^0-9]'), '');
 
-            // Si hay una discrepancia clara (ej: puso 1000 y es 5000), mostramos error.
             if (cleanUserCp.isNotEmpty && cleanDetected.isNotEmpty && 
                 !cleanDetected.contains(cleanUserCp) && !cleanUserCp.contains(cleanDetected)) {
               
@@ -185,14 +197,14 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
                   _shippingError = "El C.P. ingresado ($userCp) no coincide con la ubicación detectada ($detectedPostcode). Verifique la localidad.";
                 });
               }
-              return false; // Detenemos porque el CP está mal
+              return false; 
             }
           }
 
           if (mounted) {
             setState(() { 
               _mapCoordinates = LatLng(lat, lon); 
-              _isLocationApproximate = rank < 28; // < 28 suele ser nivel ciudad/barrio, no casa exacta
+              _isLocationApproximate = rank < 28; 
               _isValidatingAddress = false; 
             });
           }
@@ -200,7 +212,6 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
         }
       }
     } catch (e) {
-      // Si falla la API, permitimos continuar pero avisamos (fail-safe)
       if (mounted) setState(() => _isValidatingAddress = false);
       return true; 
     }
@@ -216,9 +227,8 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
       return;
     }
     
-    // Primero validamos la dirección y el CP
     final isAddressValid = await _validateAndGeocode();
-    if (!isAddressValid) return; // Si falló la validación (ej: CP incorrecto), no calculamos envío
+    if (!isAddressValid) return;
 
     final cartItems = ref.read(cartNotifierProvider).value ?? [];
     double totalWeight = cartItems.fold(0.1, (sum, item) => sum + (item.product.weight * item.quantity));
@@ -251,7 +261,11 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
   Future<void> _processPayment({required bool useTransparent}) async {
     final checkoutData = _submitFormValidation();
     if (checkoutData == null) return;
+    
+    // --- CAMBIO: Iniciar animación ---
     setState(() => _isProcessingPayment = true);
+    _btnController.repeat(); 
+
     try {
       final cartItems = ref.read(cartNotifierProvider).value ?? [];
       final itemsPayload = cartItems.map((item) => {
@@ -279,7 +293,12 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
     } finally {
-      if (mounted) setState(() => _isProcessingPayment = false);
+      // --- CAMBIO: Detener animación ---
+      if (mounted) {
+        setState(() => _isProcessingPayment = false);
+        _btnController.stop();
+        _btnController.reset();
+      }
     }
   }
 
@@ -456,6 +475,7 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
 
   Widget _buildErrorMessage(String msg) => Container(margin: const EdgeInsets.only(top: 10), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)), child: Row(children: [const Icon(Icons.error_outline, size: 16, color: Colors.red), const SizedBox(width: 8), Expanded(child: Text(msg, style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)))]));
 
+  // --- CAMBIO: Botón con animación compleja ---
   Widget _buildMercadoPagoButton() {
     return Container(
       height: 56,
@@ -464,19 +484,50 @@ class _OrderSummaryCardState extends ConsumerState<OrderSummaryCard> {
         gradient: const LinearGradient(colors: [Color(0xFF009EE3), Color(0xFF007EB5)]),
         boxShadow: [BoxShadow(color: const Color(0xFF009EE3).withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4))],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: _isProcessingPayment ? null : () => _processPayment(useTransparent: false),
-          borderRadius: BorderRadius.circular(12),
-          child: Center(
-            child: _isProcessingPayment 
-              ? const CircularProgressIndicator(color: Colors.white)
-              : const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [FaIcon(FontAwesomeIcons.handshake, color: Colors.white, size: 20), SizedBox(width: 12), Text('Pagar con Mercado Pago', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))],
+      child: ClipRRect( // ClipRRect para que la animación no salga del borde
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            // 1. Capa de Animación (Fondo oscuro progresivo)
+            if (_isProcessingPayment)
+              AnimatedBuilder(
+                animation: _btnController,
+                builder: (context, child) {
+                  return FractionallySizedBox(
+                    widthFactor: _btnController.value, // Ancho animado de 0 a 100%
+                    alignment: Alignment.centerLeft,
+                    child: Container(
+                      color: Colors.black.withOpacity(0.15),
+                    ),
+                  );
+                },
+              ),
+
+            // 2. Capa de Contenido (Texto e Icono)
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _isProcessingPayment ? null : () => _processPayment(useTransparent: false),
+                borderRadius: BorderRadius.circular(12),
+                child: Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (_isProcessingPayment) ...[
+                         const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                         const SizedBox(width: 12),
+                         const Text('Procesando...', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))
+                      ] else ...[
+                         const FaIcon(FontAwesomeIcons.handshake, color: Colors.white, size: 20),
+                         const SizedBox(width: 12),
+                         const Text('Pagar con Mercado Pago', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))
+                      ]
+                    ],
+                  ),
                 ),
-          ),
+              ),
+            ),
+          ],
         ),
       ),
     );
