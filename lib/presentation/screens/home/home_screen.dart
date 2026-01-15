@@ -40,7 +40,7 @@ class _HeaderSection extends StatelessWidget {
       child: Column(
         children: [
           Text(
-            'Catálogo de IPhones y Accesorios',
+            'Experiencia Tech Premium',
             style: Theme.of(context).textTheme.displaySmall?.copyWith(
                   fontWeight: FontWeight.w200,
                   fontSize: 48,
@@ -49,7 +49,7 @@ class _HeaderSection extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'Los mejores productos Apple, garantizados.',
+            'Tecnología de vanguardia para conectar y disfrutar.',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: Colors.black54,
                   fontWeight: FontWeight.w400,
