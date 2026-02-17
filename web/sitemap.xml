@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  Sitemap de Migue iPhones (MNL Tecno)
+  Sitemap de MNL Tecno (migue-iphones)
   Rutas indexadas: home, cart, tracking
-  Dominio: https://migue-iphones.vercel.app (actualiza si usas dominio custom)
+  Dominio: https://www.mnltecno.com
 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://migue-iphones.vercel.app/</loc>
+    <loc>https://www.mnltecno.com/</loc>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://migue-iphones.vercel.app/cart</loc>
+    <loc>https://www.mnltecno.com/cart</loc>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://migue-iphones.vercel.app/tracking</loc>
+    <loc>https://www.mnltecno.com/tracking</loc>
     <priority>0.7</priority>
   </url>
 </urlset>
